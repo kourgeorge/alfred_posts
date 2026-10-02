@@ -5,7 +5,7 @@ import { demoState, demoCommand } from './demo.js';
 import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, inZone, zonedParts, sourceUrl } from './utils.js';
 
 const root = document.querySelector('#app');
-let config = {repository: ''};
+let config = {gateway: ''};
 let state = {drafts: [], schedules: [], operations: []};
 let demo = false;
 let signedIn = false;
@@ -40,11 +40,10 @@ function toast(message, error = false) {
 function login(error = '') {
   root.innerHTML = `<div class="login-layout">
     <section class="login-story">${brand()}<div class="login-copy"><span class="eyebrow">YOUR OWN LITTLE PUBLISHING STUDIO</span><h1>Good content.<br>A little more<br><em>consistently.</em></h1><p>Turn your ideas into a steady rhythm of posts.<br>Plan, preview, and publish. All in one place.</p><div class="login-types"><span>${icon('image')}Photos</span><span>${icon('video')}Videos</span><span>${icon('question')}Questions</span></div></div><div class="login-footer">Made for Alfred Kor <span>Powered by GitHub ${icon('github')}</span></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></section>
-    <section class="login-panel"><div class="login-form-wrap"><span class="lock-tile">${icon('lock')}</span><span class="eyebrow">ALFRED STUDIO</span><h2>A space of your own.</h2><p>Enter your access key to open your studio.</p>
-      <form id="login-form"><label for="access-key">Access key</label><input id="access-key" name="token" type="password" placeholder="Your GitHub access key" required autocomplete="off" spellcheck="false" autofocus />
-      <details class="connection-details"><summary>Connection details ${icon('chevron')}</summary><label for="repository">Private automation repository</label><input id="repository" name="repo" value="${e(config.repository)}" placeholder="owner/repository" required autocomplete="off" /><p>Use a fine-grained GitHub token with access to this repository: <strong>Actions: read/write</strong>, <strong>Contents: read</strong>, and <strong>Secrets: read/write</strong>.</p><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create an access key ${icon('external')}</a></details>
+    <section class="login-panel"><div class="login-form-wrap"><span class="lock-tile">${icon('lock')}</span><span class="eyebrow">ALFRED STUDIO</span><h2>A space of your own.</h2><p>Enter your password to open your studio.</p>
+      <form id="login-form"><label for="studio-password">Password</label><input id="studio-password" name="password" type="password" placeholder="Your studio password" required autocomplete="current-password" spellcheck="false" autofocus />
       <div id="login-error" class="form-error" role="alert">${e(error)}</div><button class="btn primary login-submit" type="submit">Open studio ${icon('arrow')}</button></form>
-      <div class="login-note">${icon('lock')}<span>Your key stays in memory for this session.<br>Close or refresh this tab to lock the studio.</span></div><div class="login-divider"><span>just looking around?</span></div><button class="btn demo-btn" data-action="demo">Explore the demo ${icon('arrow')}</button><small class="muted demo-caption">Sample content. No real posts or API calls.</small>
+      <div class="login-note">${icon('lock')}<span>One password. Your own private workspace.<br>Close or refresh this tab to lock the studio.</span></div><div class="login-divider"><span>just looking around?</span></div><button class="btn demo-btn" data-action="demo">Explore the demo ${icon('arrow')}</button><small class="muted demo-caption">Sample content. No real posts or API calls.</small>
     </div></section></div>`;
 }
 
@@ -55,9 +54,9 @@ function shell() {
   root.innerHTML = `<div class="app-layout ${mobileNav ? 'nav-open' : ''}">
     <aside class="sidebar">${brand()}<div class="workspace-card"><div class="avatar">AK</div><div><strong>Alfred Kor</strong><span><b class="facebook-mini">f</b> Facebook page</span></div>${icon('chevron')}</div>
     <span class="nav-label">WORKSPACE</span><nav aria-label="Main navigation">${nav.map(([id,ico]) => `<a href="#${id}" class="nav-link ${page===id?'active':''}" ${page===id?'aria-current="page"':''}>${icon(ico)}${labels[id]}${id==='create'?'<span class="nav-shortcut" aria-hidden="true">+</span>':''}</a>`).join('')}</nav>
-    <div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<strong>A good rhythm goes a long way.</strong><p>Keep your page active.<br>Keep your time for you.</p></div><a href="#settings" class="nav-link ${page==='settings'?'active':''}">${icon('settings')}Settings</a><button class="nav-link" data-action="logout">${icon('logout')}${demo?'Exit demo':'Lock studio'}</button><div class="connection-status"><i></i>${demo?'Demo workspace':'GitHub connected'}${icon('github')}</div></div></aside>
+    <div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<strong>A good rhythm goes a long way.</strong><p>Keep your page active.<br>Keep your time for you.</p></div><a href="#settings" class="nav-link ${page==='settings'?'active':''}">${icon('settings')}Settings</a><button class="nav-link" data-action="logout">${icon('logout')}${demo?'Exit demo':'Lock studio'}</button><div class="connection-status"><i></i>${demo?'Demo workspace':'Studio connected'}${icon('github')}</div></div></aside>
     <div class="workspace"><header class="topbar"><div class="breadcrumb"><button class="icon-btn mobile-menu" data-action="menu" aria-label="Toggle navigation">${icon('menu')}</button><span>Workspace</span>${icon('chevron')}<strong>${labels[page]}</strong></div><div class="topbar-end"><span class="timezone">${icon('globe')} Asia/Jerusalem</span><span class="session-pill">${icon(demo?'info':'lock')}${demo?'Demo mode':'Private studio'}</span><div class="small-avatar">AK</div></div></header>
-    ${demo?'<div class="demo-banner"><span><strong>A look around your future studio.</strong> You’re using sample content.</span><button data-action="logout">Connect your GitHub '+icon('arrow')+'</button></div>':''}
+    ${demo?'<div class="demo-banner"><span><strong>A look around your future studio.</strong> You’re using sample content.</span><button data-action="logout">Open your studio '+icon('arrow')+'</button></div>':''}
     <main id="main-content">${pending?`<div class="pending-banner" role="status"><span class="spinner"></span><div><strong>${e(pending.label)}</strong><span>${Date.now()-pending.started>180000?'Still waiting for GitHub. You can check progress in Actions.':'GitHub is working on your request. This usually takes a minute.'}</span></div>${demo?'':`<a href="https://github.com/${e(github.repoName())}/actions/workflows/studio.yml" target="_blank" rel="noopener noreferrer">View progress ${icon('external')}</a>`}</div>`:''}
     ${{overview:overview,create:composer,schedule:schedulePage,activity:activityPage,settings:settingsPage}[page]()}</main>
     <footer class="workspace-footer"><span>Alfred Studio <span class="footer-dot">·</span> A little more consistent.</span><span>${icon('clock')} Times shown in Israel time unless specified</span></footer></div></div>`;
@@ -147,10 +146,16 @@ function settingsPage() {
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>A little help finding the right words.</p></div></div>${configured('OPENAI_API_KEY')}</div><label for="openai-key">API key</label><input id="openai-key" type="password" name="OPENAI_API_KEY" placeholder="Paste a new OpenAI API key" autocomplete="new-password" /><p class="field-hint">Used to generate Hebrew captions. API usage is billed to your OpenAI account.</p><label for="openai-model">Caption model <span>Optional update · all formats</span></label><input id="openai-model" name="MODEL" placeholder="gpt-4.1-mini" autocomplete="off" /></section>
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol google-symbol">${icon('image')}</span><div><h2>Google Drive & Forms</h2><p>Your library of photos, videos, and questions.</p></div></div>${configured('GOOGLE_SERVICE_ACCOUNT_JSON')}</div><details><summary>Update content sources ${icon('chevron')}</summary><label for="google-key">Service account JSON</label><textarea id="google-key" name="GOOGLE_SERVICE_ACCOUNT_JSON" class="credential-textarea" placeholder="Paste the new service account JSON" spellcheck="false" autocomplete="off"></textarea><p class="field-hint">Share each media folder and question form with the service account email.</p>${[['DRIVE_FOLDER_ID','Photo folder ID'],['DRIVE_FOLDER_ID_VIDEO','Video folder ID'],['DRIVE_FOLDER_ID_QUESTIONS','Question forms folder ID']].map(([name,label])=>`<label for="${name}">${label}</label><input id="${name}" name="${name}" placeholder="Leave empty to keep the current folder" autocomplete="off" />`).join('')}</details></section>
     <div id="settings-error" class="form-error" role="alert">${e(secretsError)}</div><div class="settings-save"><span>${icon('lock')} Blank fields keep existing values.</span><button type="submit" class="btn primary">${icon('check')} Save credentials</button></div></form>
-    <aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('lock')}</span><h3>Private by design.</h3><p>Credentials are encrypted in your browser and saved in your private repository’s GitHub Secrets.</p><p>They’re never saved in this website or returned to the browser. To change a key, simply enter a replacement.</p><div class="soft-note">${icon('check')} No database. No extra account.</div></div><div class="panel connection-panel"><span class="eyebrow">YOUR CONNECTION</span><h3>${icon('github')} GitHub Actions</h3><p class="repo-name">${e(demo?'Demo workspace':github.repoName())}</p><span class="connection-inline"><i></i>${demo?'Sample data only':'Access key active this session'}</span><button class="btn secondary" data-action="logout">${icon('lock')} Lock studio</button></div><div class="plain-note">${icon('info')} Saving credentials affects future runs. A workflow already in progress keeps its current keys.</div></aside></div>`;
+    <aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('lock')}</span><h3>Private by design.</h3><p>Credentials are encrypted in your browser and saved in your private repository’s GitHub Secrets.</p><p>They’re never saved in this website or returned to the browser. To change a key, simply enter a replacement.</p><div class="soft-note">${icon('check')} No database. No extra account.</div></div><div class="panel connection-panel"><span class="eyebrow">YOUR CONNECTION</span><h3>${icon('github')} GitHub Actions</h3><p class="repo-name">${e(demo?'Demo workspace':github.repoName())}</p><span class="connection-inline"><i></i>${demo?'Sample data only':'Password session active'}</span><button class="btn secondary" data-action="logout">${icon('lock')} Lock studio</button></div><div class="plain-note">${icon('info')} Saving credentials affects future runs. A workflow already in progress keeps its current keys.</div></aside></div>`;
 }
 
 function render() { signedIn ? shell() : login(); }
+function lockStudio() {
+  closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
+  state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
+  editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;render();
+}
+window.addEventListener('studio-locked', lockStudio);
 function navigate(page) { mobileNav=false; if(location.hash===`#${page}`) render();else location.hash=page; }
 
 async function sync() {
@@ -218,8 +223,8 @@ document.addEventListener('submit', async event=> {
   if(form.id==='login-form') {
     const submit=form.querySelector('[type=submit]');submit.disabled=true;submit.textContent='Opening your studio…';
     try {
-      await github.connect(String(data.get('repo')).trim(),String(data.get('token')).trim());
-      config.repository=String(data.get('repo')).trim();signedIn=true;demo=false;state=await github.readState();form.reset();
+      await github.connect(config.gateway,String(data.get('password')));
+      state=await github.readState();signedIn=true;demo=false;form.reset();
       render();if(route()==='settings')loadSecrets();
     } catch(error) { signedIn=false;github.disconnect();login(error.message); }
   }
@@ -251,7 +256,7 @@ document.addEventListener('submit', async event=> {
       submit.disabled=true;submit.textContent='Saving securely…';
       if(!demo) await github.saveSecrets(values);
       Object.keys(values).forEach(k=>secretNames.add(k));secretsLoaded=true;secretsError='';form.reset();render();toast(demo?'Credentials simulated. Nothing was saved.':'Credentials saved securely in GitHub Secrets');
-    } catch(error) {document.querySelector('#settings-error').textContent=error.message;submit.disabled=false;submit.innerHTML=icon('check')+' Save credentials';}
+    } catch(error) {const target=document.querySelector('#settings-error');if(target)target.textContent=error.message;else toast(error.message,true);submit.disabled=false;submit.innerHTML=icon('check')+' Save credentials';}
   }
 });
 
@@ -276,7 +281,7 @@ document.addEventListener('click',async event=> {
   if(!button||button.disabled) return;
   const action=button.dataset.action;
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
-  if(action==='logout') {closeModal();github.disconnect();demo=false;signedIn=false;pending=null;state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;render();}
+  if(action==='logout') lockStudio();
   if(action==='menu') {mobileNav=!mobileNav;render();}
   if(action==='new') {selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}
@@ -302,7 +307,7 @@ document.addEventListener('click',async event=> {
   if(action==='confirm-delete-schedule') {const id=button.dataset.id;closeModal();await command({action:'delete_schedule',schedule_id:id},'Removing your schedule…','Schedule removed');}
   if(action==='close-modal') closeModal();
   if(action==='filter') {activityFilter=button.dataset.filter;render();}
-  if(action==='refresh') {if(!demo){await sync();render();}await command({action:'refresh'},'Checking publication status…','Publication status refreshed');}
+  if(action==='refresh') {if(!demo){await sync();render();if(!signedIn)return;}await command({action:'refresh'},'Checking publication status…','Publication status refreshed');}
   if(action==='watch-video') {
     const id=currentDraft().source.id;
     if(/^[\w-]+$/.test(id)) modal('Your selected video','Playback uses your Google Drive access.',`<iframe class="drive-player" src="https://drive.google.com/file/d/${e(id)}/preview" title="Selected video from Google Drive" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`);
@@ -320,5 +325,5 @@ async function loadSecrets() {
   }
 }
 setInterval(sync,8000);
-try {config=await fetch('./config.json',{cache:'no-store'}).then(r=>r.json());}catch{/* connection details remain editable */}
+try {config=await fetch('./config.json',{cache:'no-store'}).then(r=>r.json());}catch{/* login reports a missing connection configuration */}
 render();

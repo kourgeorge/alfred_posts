@@ -2,7 +2,8 @@
 
 A single-user Facebook publishing dashboard. The static website runs on GitHub
 Pages; GitHub Actions runs the existing Python scripts. Drafts and schedules are
-JSON files in a private Git branch. There is no database or application server.
+JSON files in a private Git branch. A small serverless gateway checks the studio
+password and connects to GitHub. There is no database.
 
 ## Repositories
 
@@ -17,19 +18,50 @@ access to that repository restricted to people you trust to run the automation.
 
 ## Open the studio
 
-1. Create a [fine-grained GitHub personal access token](https://github.com/settings/personal-access-tokens/new).
-2. Select **Only select repositories → alfred_posts_automation**.
-3. Give it these repository permissions:
-   - **Actions: Read and write** — run posting and scheduling commands.
-   - **Contents: Read-only** — read your drafts and schedules.
-   - **Secrets: Read and write** — update Facebook/OpenAI/Google credentials.
-4. Copy the token and enter it in the website's **Access key** field.
+Open the website, enter your studio password, and select **Open studio**. No GitHub
+access key or GitHub sign-in is needed in the dashboard. The password is configured
+as the gateway's `STUDIO_PASSWORD` runtime secret; it is never embedded in the public
+website, configuration file, or source repository.
 
-This token is your single studio access key. It stays in memory, not localStorage,
-sessionStorage, cookies, the URL, or source code. Refreshing/closing the tab or
-pressing **Lock studio** clears the session. Store the key in your password manager.
-The website shell and demo are public; real data and all actions require GitHub
-authorization. A browser-only shared password would not protect those APIs.
+A successful login creates a signed session valid for up to eight hours. The browser
+holds it only in memory: refreshing, closing the tab, or choosing **Lock studio**
+clears it. No session is stored in localStorage, sessionStorage, or cookies. Expired
+sessions return to the login screen. Locking clears this browser's copy; already
+issued tokens expire at their original deadline. Changing the server password or
+session signing secret invalidates all sessions.
+
+The public shell and sample demo contain no private drafts. All real data, commands,
+and credential updates require gateway authentication. The gateway accepts only
+specific studio operations against the fixed private automation repository, with
+CORS restricted to the website origin. Login attempts are limited per running Worker
+instance; this is best-effort protection, not a global rate limiter.
+
+## Password gateway
+
+The gateway is hosted at https://alfred-studio-gateway.gkour.chatgpt.site using Sites.
+Its source is `gateway/worker.js`; the associated project ID is in
+`.openai/hosting.json`. Runtime secrets are managed in that site's environment settings:
+
+- `STUDIO_PASSWORD`: the one password used to open the dashboard.
+- `SESSION_SECRET`: a random server-side signing secret (at least 32 random bytes).
+- `GITHUB_TOKEN`: the server's GitHub connection, never returned to a browser.
+
+To change the login password, update `STUDIO_PASSWORD` in the gateway's environment
+settings and redeploy its saved version. Facebook/OpenAI credentials are changed
+inside the dashboard's **Settings** page as before.
+
+For a new installation, use a fine-grained GitHub token restricted to the private
+automation repository with **Actions: read/write**, **Contents: read**, and
+**Secrets: read/write**. The current installation uses the owner's existing GitHub
+connection stored as a runtime secret. The gateway cannot proxy arbitrary GitHub
+URLs, repositories, branches, workflows, or secret names.
+
+To package a gateway update, run `python3 scripts/package_gateway.py`. The archive
+contains only the Worker entrypoint, a landing link, and hosting metadata. Commit
+and push the exact source state to the Sites source repository, save that version
+with the archive, then deploy it. The Sites audience is public so the GitHub Pages
+client can reach the API; the application password protects every private endpoint.
+The gateway can also run as a standard Cloudflare Worker with these three secrets.
 
 ## Create, review, and publish
 
@@ -73,7 +105,7 @@ service account JSON, and source folder IDs. Blank fields leave existing values 
 place. Existing secret values cannot be retrieved through the website.
 
 The browser uses GitHub's public encryption key and libsodium sealed boxes to
-encrypt each replacement before sending it to the GitHub Secrets API. Credentials
+encrypt each replacement before sending it through the gateway to the GitHub Secrets API. Credentials
 are only available to the private Actions worker at execution time. Running jobs
 retain the credentials they started with.
 
@@ -110,6 +142,7 @@ operation logs are private, and old versions remain in the private Git history.
 
 ## Costs
 
+The serverless password gateway uses the Sites hosting account and its limits.
 Public Pages hosting and standard public repository build runners are free. The
 private worker uses the account's Actions allowance (GitHub Free includes 2,000
 minutes/month). Twice-hourly checks consume roughly 1,440–1,488 one-minute runs per
@@ -126,14 +159,17 @@ npm run dev
 npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 npm run test:browser
+npm run test:gateway
 ```
 
 Browser checks use locally installed Chrome and exercise the demo plus mocked
-GitHub API calls. They verify sealed-box credential encryption, auth, exact-caption
+gateway API calls. They verify sealed-box credential encryption, auth, exact-caption
 publishing, schedules, and desktop/mobile layouts without making a real post.
-Python tests cover timezone rules, source verification, state transitions,
-idempotency, and ambiguous Facebook results. CI runs Python tests and builds the site.
+Gateway tests cover authentication, session expiry, origin checks, endpoint restrictions,
+and safe upstream failures. Python tests cover timezone rules, source verification, state transitions,
+idempotency, and ambiguous Facebook results. CI runs Python and gateway tests and builds the site.
 `Publish website` deploys the built static assets on relevant pushes to `main`.
 
-For a different installation, change `web/public/config.json`, the checkout source
+For a different installation, change the gateway repository/origin constants,
+`web/public/config.json`, the CSP origin in `web/index.html`, the checkout source
 in `deployment/studio.yml`, and the repository condition in the Pages workflow.

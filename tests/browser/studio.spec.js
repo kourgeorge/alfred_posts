@@ -89,24 +89,23 @@ test('recurring schedule can be created, paused, edited and deleted', async ({pa
   await expect(edited).toHaveCount(0);
 });
 
-test('GitHub auth, dispatch payload and encrypted secrets use only intended APIs', async ({page}) => {
+test('Password login, dispatch payload and encrypted secrets use the gateway', async ({page}) => {
   await sodium.ready;
   const keyPair=sodium.crypto_box_keypair();
   const requests=[];
   const initial=demoState();
-  await page.route('https://api.github.com/**',async route=> {
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
     const req=route.request();const url=new URL(req.url());requests.push({url:url.pathname,body:req.postData(),auth:req.headers().authorization});
     let body={};
-    if(url.pathname.endsWith('/alfred_posts_automation')) body={private:true,default_branch:'main'};
-    else if(url.pathname.endsWith('/studio.yml')) body={id:1};
-    else if(url.pathname.endsWith('/state.json')) body=initial;
+    if(url.pathname.endsWith('/login')) return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'test-session',repository:'kourgeorge/alfred_posts_automation'})});
+    else if(url.pathname.endsWith('/state')) body=initial;
     else if(url.pathname.endsWith('/secrets/public-key')) body={key_id:'mock-key-id',key:sodium.to_base64(keyPair.publicKey,sodium.base64_variants.ORIGINAL)};
     else if(url.pathname.endsWith('/secrets')) body={secrets:[{name:'OPENAI_API_KEY'}]};
     if(req.method()!=='GET') return route.fulfill({status:req.method()==='PUT'?201:204,body:''});
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto('/');
-  await page.getByLabel('Access key',{exact:true}).fill('github-test-access-key');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
   await page.getByRole('button',{name:'Open studio'}).click();
   await expect(page.getByRole('heading',{name:'Your content, on autopilot.'})).toBeVisible();
   await page.getByRole('link',{name:'Settings',exact:true}).click();
@@ -121,9 +120,10 @@ test('GitHub auth, dispatch payload and encrypted secrets use only intended APIs
   await page.getByRole('link',{name:'Create a post'}).click();
   await page.getByRole('button',{name:'Generate photo draft'}).click();
   await expect(page.locator('.pending-banner')).toContainText('Creating your draft');
-  const sent=JSON.parse(requests.find(r=>r.url.endsWith('/dispatches')).body);
-  expect(JSON.parse(sent.inputs.command)).toMatchObject({action:'generate',type:'image'});
-  expect(requests.every(r=>r.auth==='Bearer github-test-access-key')).toBeTruthy();
+  const sent=JSON.parse(requests.find(r=>r.url.endsWith('/commands')).body);
+  expect(sent).toMatchObject({action:'generate',type:'image'});
+  expect(requests.filter(r=>!r.url.endsWith('/login')).every(r=>r.auth==='Bearer test-session')).toBeTruthy();
+  expect(requests.filter(r=>!r.url.endsWith('/login')).every(r=>!r.body?.includes('test-password'))).toBeTruthy();
   expect(await page.evaluate(()=>[localStorage.length,sessionStorage.length])).toEqual([0,0]);
 });
 
@@ -138,17 +138,16 @@ test('a background update cannot replace the caption or revision being previewed
   const original=remote.drafts[0].text;
   let dispatched;
   await page.clock.install();
-  await page.route('https://api.github.com/**',async route=> {
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
     const url=new URL(route.request().url());
     let body={};
-    if(url.pathname.endsWith('/alfred_posts_automation'))body={private:true,default_branch:'main'};
-    else if(url.pathname.endsWith('/studio.yml'))body={id:1};
-    else if(url.pathname.endsWith('/state.json'))body=remote;
-    else if(url.pathname.endsWith('/dispatches')) {dispatched=JSON.parse(JSON.parse(route.request().postData()).inputs.command);return route.fulfill({status:204,body:''});}
+    if(url.pathname.endsWith('/login'))body={token:'test-session',repository:'kourgeorge/alfred_posts_automation'};
+    else if(url.pathname.endsWith('/state'))body=remote;
+    else if(url.pathname.endsWith('/commands')) {dispatched=JSON.parse(route.request().postData());return route.fulfill({status:204,body:''});}
     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto('/');
-  await page.getByLabel('Access key',{exact:true}).fill('test-session-key');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
   await page.getByRole('button',{name:'Open studio'}).click();
   await page.getByRole('button',{name:/A safer journey starts/}).click();
   await expect(page.locator('#caption')).toHaveValue(original);
@@ -175,4 +174,32 @@ for(const width of [1440,390]) test(`visual pages fit ${width}px viewport`,async
     await page.screenshot({path:`test-results/${name.replaceAll(' ','-')}-${width}.png`,fullPage:true});
   }
   expect(errors).toEqual([]);
+});
+
+
+test('wrong password stays locked and an expired session clears private content', async ({page}) => {
+  let authorized = false;
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**', async route => {
+    const req = route.request(); const path = new URL(req.url()).pathname;
+    let body = {error:'Incorrect password. Please try again.'}; let status = 401;
+    if (path === '/api/login' && req.postDataJSON().password === 'test-password') {
+      body = {token:'test-session',repository:'kourgeorge/alfred_posts_automation'}; status = 200; authorized = true;
+    } else if (path === '/api/state' && authorized) { body = demoState(); status = 200; }
+    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/');
+  await expect(page.getByLabel('Password',{exact:true})).toBeVisible();
+  await expect(page.getByText('Connection details')).toHaveCount(0);
+  await page.getByLabel('Password',{exact:true}).fill('wrong-password');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await expect(page.getByRole('alert')).toContainText('Incorrect password');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await expect(page.getByRole('heading',{name:'Your content, on autopilot.'})).toBeVisible();
+  await page.getByRole('link',{name:'Activity',exact:true}).click();
+  authorized = false;
+  await page.getByRole('button',{name:'Refresh status'}).click();
+  await expect(page.getByRole('heading',{name:'A space of your own.'})).toBeVisible();
+  await expect(page.locator('.draft-row')).toHaveCount(0);
+  expect(await page.evaluate(()=>[localStorage.length,sessionStorage.length])).toEqual([0,0]);
 });

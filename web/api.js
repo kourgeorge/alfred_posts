@@ -1,73 +1,72 @@
 import sodium from 'libsodium-wrappers';
 
-// Credentials exist only in memory. They are never persisted in browser storage.
-let accessKey = '';
+// Only a short-lived studio session is held in memory. GitHub credentials stay server-side.
+let sessionToken = '';
+let gateway = '';
 let repository = '';
-let ref = 'main';
-export const connected = () => Boolean(accessKey);
+let generation = 0;
+export const connected = () => Boolean(sessionToken);
 export const repoName = () => repository;
-export const disconnect = () => { accessKey = ''; repository = ''; };
+export const disconnect = () => { sessionToken = ''; repository = ''; generation++; };
 
 export async function api(path, options = {}) {
-  const result = await fetch(`https://api.github.com/repos/${repository}${path}`, {
-    ...options,
-    headers: { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', Authorization: `Bearer ${accessKey}`,
-      'X-GitHub-Api-Version': '2022-11-28', ...options.headers },
+  const current = generation;
+  const result = await fetch(`${gateway}/api${path}`, {
+    ...options, cache: 'no-store', credentials: 'omit', redirect: 'error',
+    headers: { 'Content-Type': 'application/json',
+      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) },
   });
+  const text = await result.text();
+  if (current !== generation) throw new Error('The studio was locked. Sign in again to continue.');
+  let body;
+  try { body = text ? JSON.parse(text) : null; }
+  catch { throw new Error('The studio connection is unavailable. Please try again shortly.'); }
   if (!result.ok) {
-    if (result.status === 401) throw new Error('Your access key is invalid or expired. Sign in with a new key.');
-    if (result.status === 403) throw new Error('GitHub denied access. Check the access key’s repository permissions or rate limit.');
-    if (result.status === 404) throw Object.assign(new Error('Repository or workflow not found. Check the repository name and access key permissions.'), { status: 404 });
-    throw new Error(`GitHub returned ${result.status}. Please try again shortly.`);
+    if (result.status === 401 && sessionToken) {
+      disconnect();
+      window.dispatchEvent(new Event('studio-locked'));
+    }
+    throw new Error(body?.error || 'The studio could not complete this request. Please try again.');
   }
-  const body = await result.text();
-  return body ? JSON.parse(body) : null;
+  return body;
 }
 
-export async function connect(repo, token) {
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Enter the repository as owner/repository.');
-  repository = repo;
-  accessKey = token;
+export async function connect(endpoint, password) {
+  disconnect();
+  let url;
+  try { url = new URL(endpoint); } catch { throw new Error('The studio connection has not been configured.'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
+    throw new Error('The studio needs a secure connection.');
+  gateway = url.href.replace(/\/$/, '');
   try {
-    const info = await api('');
-    if (!info.private) throw new Error('Choose a private automation repository to keep drafts and settings private.');
-    ref = info.default_branch;
-    await api('/actions/workflows/studio.yml');
+    const info = await api('/login', { method: 'POST', body: JSON.stringify({ password }) });
+    if (!info?.token || !/^[\w.-]+\/[\w.-]+$/.test(info.repository)) throw new Error('The studio connection returned an invalid session.');
+    sessionToken = info.token;
+    repository = info.repository;
     return info;
   } catch (error) { disconnect(); throw error; }
 }
 
-export async function readState() {
-  try {
-    return await api(`/contents/state.json?ref=studio-state&t=${Date.now()}`, {
-      headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store',
-    });
-  } catch (error) {
-    if (error.status === 404) return { version: 1, drafts: [], schedules: [], operations: [], posted: {image: [], video: [], question: []} };
-    throw error;
-  }
-}
+export async function readState() { return api('/state'); }
 
 export async function dispatch(command) {
-  return api('/actions/workflows/studio.yml/dispatches', {
-    method: 'POST', body: JSON.stringify({ ref, inputs: { command: JSON.stringify(command) } }),
-  });
+  return api('/commands', { method: 'POST', body: JSON.stringify(command) });
 }
 
 export async function secretsStatus() {
-  const result = await api('/actions/secrets?per_page=100');
+  const result = await api('/secrets');
   return new Set(result.secrets.map(secret => secret.name));
 }
 
 export async function saveSecrets(values) {
-  const publicKey = await api('/actions/secrets/public-key');
+  const publicKey = await api('/secrets/public-key');
   await sodium.ready;
   const saved = [];
   for (const [name, value] of Object.entries(values)) {
     const encrypted = sodium.crypto_box_seal(sodium.from_string(value),
       sodium.from_base64(publicKey.key, sodium.base64_variants.ORIGINAL));
     try {
-      await api(`/actions/secrets/${name}`, { method: 'PUT', body: JSON.stringify({
+      await api(`/secrets/${name}`, { method: 'PUT', body: JSON.stringify({
         encrypted_value: sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL), key_id: publicKey.key_id,
       }) });
       saved.push(name);
