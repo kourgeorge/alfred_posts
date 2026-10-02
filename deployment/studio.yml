@@ -1,0 +1,54 @@
+# Install this workflow in the PRIVATE automation repository.
+name: Alfred Studio
+run-name: Studio · ${{ github.event_name == 'schedule' && 'scheduled check' || 'dashboard request' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: JSON command from the dashboard; leave empty to check schedules
+        required: false
+        type: string
+  schedule:
+    - cron: '7,37 * * * *'
+
+permissions:
+  contents: write
+
+# State writes use compare-and-swap and publication reservations. Do not add a
+# single concurrency group: GitHub can discard an older pending dashboard request.
+jobs:
+  studio:
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: kourgeorge/alfred_posts
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Process studio command or scheduled posts
+        run: python -m studio.runner
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STUDIO_COMMAND: ${{ inputs.command }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
+          OPENAI_MODEL_VIDEO: ${{ secrets.OPENAI_MODEL_VIDEO || 'gpt-4.1-mini' }}
+          OPENAI_MODEL_QUESTION: ${{ secrets.OPENAI_MODEL_QUESTION || 'gpt-4.1-mini' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          DRIVE_FOLDER_ID_VIDEO: ${{ secrets.DRIVE_FOLDER_ID_VIDEO }}
+          DRIVE_FOLDER_ID_QUESTIONS: ${{ secrets.DRIVE_FOLDER_ID_QUESTIONS }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          FB_GRAPH_VERSION: ${{ secrets.FB_GRAPH_VERSION || 'v23.0' }}
+          TIMEZONE: Asia/Jerusalem
+          INITIAL_POSTED_HISTORY: ${{ secrets.INITIAL_POSTED_HISTORY }}

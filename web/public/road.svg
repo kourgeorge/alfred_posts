@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+<defs><linearGradient id="a" x2="1" y2="1"><stop stop-color="#dbe6ce"/><stop offset="1" stop-color="#aac5a1"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-opacity=".13"/></filter></defs>
+<rect width="800" height="500" fill="url(#a)"/>
+<path d="M-40 360C100 450 250 340 330 230S530 80 850 160" fill="none" stroke="#edf0e3" stroke-width="132"/>
+<path d="M-40 360C100 450 250 340 330 230S530 80 850 160" fill="none" stroke="#687672" stroke-width="110"/>
+<path d="M-40 360C100 450 250 340 330 230S530 80 850 160" fill="none" stroke="#fff9df" stroke-width="4" stroke-dasharray="23 21"/>
+<g fill="#658b62"><circle cx="104" cy="135" r="45"/><circle cx="151" cy="158" r="33"/><circle cx="93" cy="180" r="36"/><circle cx="564" cy="373" r="53"/><circle cx="612" cy="405" r="35"/><circle cx="526" cy="421" r="34"/></g>
+<g fill="#82a278"><circle cx="96" cy="123" r="31"/><circle cx="546" cy="357" r="35"/><circle cx="615" cy="391" r="26"/></g>
+<g transform="translate(388 210) rotate(-42)" filter="url(#shadow)"><rect x="-25" y="-44" width="50" height="88" rx="15" fill="#cf724d"/><rect x="-19" y="-24" width="38" height="41" rx="7" fill="#b5d8d0"/><rect x="-17" y="-13" width="34" height="29" rx="5" fill="#d78864"/><path d="M-16 32h9m14 0h9" stroke="#fff2bc" stroke-width="5"/></g>
+<text x="46" y="55" font-family="system-ui,sans-serif" font-size="13" letter-spacing="3" fill="#365343">A LITTLE PRACTICE. A SAFER JOURNEY.</text>
+<rect x="48" y="422" width="178" height="33" rx="16" fill="#f7f8ec"/><text x="67" y="443" font-family="system-ui,sans-serif" font-size="12" fill="#365343">ALFRED · THEORY &amp; DRIVING</text>
+</svg>

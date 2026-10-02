@@ -1,0 +1,6 @@
+openai
+google-api-python-client
+google-auth
+requests
+python-dotenv
+Pillow>=11,<13

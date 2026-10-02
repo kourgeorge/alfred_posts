@@ -1,0 +1,12 @@
+.env
+service-account*.json
+__pycache__/
+.venv/
+*.pyc
+posted_history.json
+.DS_Store
+node_modules/
+dist/
+playwright-report/
+test-results/
+cron.log
