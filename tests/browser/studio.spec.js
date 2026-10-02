@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import sodium from 'libsodium-wrappers';
 import { demoState } from '../../web/demo.js';
 import { inZone, nextOccurrence } from '../../web/utils.js';
+import defaultPrompts from '../../prompts.json' with { type: 'json' };
 
 async function demo(page) {
   await page.goto('/');
@@ -173,7 +174,84 @@ for(const width of [1440,390]) test(`visual pages fit ${width}px viewport`,async
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
     await page.screenshot({path:`test-results/${name.replaceAll(' ','-')}-${width}.png`,fullPage:true});
   }
+  await page.getByRole('button',{name:'AI prompts',exact:true}).click();
+  await expect(page.getByLabel('Photo prompt')).toHaveValue(defaultPrompts.image);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  await page.screenshot({path:`test-results/prompts-${width}.png`,fullPage:true});
   expect(errors).toEqual([]);
+});
+
+test('prompt editing, format switching, demo saves and restore default preserve captions',async({page})=> {
+  await demo(page);
+  await page.getByRole('link',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'AI prompts',exact:true}).click();
+  const custom='Write a short friendly caption. כתוב בעברית <script>not code</script>';
+  await page.getByLabel('Photo prompt').fill(custom);
+  await page.getByRole('button',{name:'Video',exact:true}).click();
+  await expect(page.getByLabel('Video prompt')).toHaveValue(defaultPrompts.video);
+  await page.getByLabel('Video prompt').fill('My video instructions');
+  await page.getByRole('button',{name:/^Photo/}).click();
+  await expect(page.getByLabel('Photo prompt')).toHaveValue(custom);
+  await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+  await expect(page.locator('#prompt-state')).toHaveText('Saved custom prompt');
+  await page.getByRole('button',{name:/^Video/}).click();
+  await expect(page.getByLabel('Video prompt')).toHaveValue('My video instructions');
+  await page.getByRole('button',{name:'Discard changes',exact:true}).click();
+  await expect(page.getByLabel('Video prompt')).toHaveValue(defaultPrompts.video);
+  await page.getByRole('button',{name:'Question',exact:true}).click();
+  await expect(page.locator('.prompt-panel')).toContainText('every answer choice');
+  await page.getByRole('button',{name:'Photo',exact:true}).click();
+  await page.getByRole('button',{name:'Restore default',exact:true}).click();
+  await expect(page.locator('#prompt-state')).toHaveText('Unsaved changes');
+  await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+  await expect(page.locator('#prompt-state')).toHaveText('Default prompt');
+  await page.getByRole('link',{name:'Create a post',exact:true}).click();
+  await page.locator('#draft-select').selectOption('demo-photo');
+  await expect(page.locator('#caption')).toHaveValue(demoState().drafts[0].text);
+});
+
+test('saved prompts survive login and stale edits cannot replace newer prompts',async({page})=> {
+  const remote=demoState();let sent;
+  await page.clock.install();
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+    const req=route.request();const path=new URL(req.url()).pathname;
+    let body={secrets:[]};
+    if(path==='/api/login')body={token:'test-session',repository:'kourgeorge/alfred_posts_automation'};
+    if(path==='/api/state')body=remote;
+    if(path==='/api/commands') {
+      sent=req.postDataJSON();
+      remote.prompts??={};remote.prompt_revisions??={};
+      const stale=sent.revision!==(remote.prompt_revisions[sent.type]??0);
+      if(!stale){remote.prompts[sent.type]=sent.prompt;remote.prompt_revisions[sent.type]=sent.revision+1;}
+      remote.operations.unshift({id:sent.id,status:stale?'failed':'complete',error:stale?'This prompt changed in another session.':null});
+      return route.fulfill({status:204,body:''});
+    }
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  async function signIn() {
+    await page.getByLabel('Password',{exact:true}).fill('test-password');
+    await page.getByRole('button',{name:'Open studio'}).click();
+    await page.getByRole('link',{name:'Settings',exact:true}).click();
+    await page.getByRole('button',{name:'AI prompts',exact:true}).click();
+  }
+  await page.goto('/');await signIn();
+  await page.getByLabel('Photo prompt').fill('Persisted instructions');
+  await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+  await expect(page.locator('#prompt-state')).toHaveText('Saved custom prompt');
+  expect(sent).toMatchObject({action:'save_prompt',type:'image',prompt:'Persisted instructions',revision:0});
+  await page.reload();await signIn();
+  await expect(page.getByLabel('Photo prompt')).toHaveValue('Persisted instructions');
+  await page.getByLabel('Photo prompt').fill('Unsaved local edit');
+  remote.prompts.image='Updated elsewhere';remote.prompt_revisions.image=2;
+  await page.clock.fastForward(9000);
+  await expect(page.getByLabel('Photo prompt')).toHaveValue('Unsaved local edit');
+  await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+  await expect(page.locator('#toast')).toContainText('another session');
+  expect(sent.revision).toBe(1);
+  expect(remote.prompts.image).toBe('Updated elsewhere');
+  await expect(page.getByLabel('Photo prompt')).toHaveValue('Unsaved local edit');
+  await page.getByRole('button',{name:'Discard changes',exact:true}).click();
+  await expect(page.getByLabel('Photo prompt')).toHaveValue('Updated elsewhere');
 });
 
 

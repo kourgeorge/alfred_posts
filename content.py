@@ -1,5 +1,7 @@
 """OpenAI post-text generation: personas, prompt templates, and the model call."""
 
+import json
+from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -7,85 +9,10 @@ from openai import OpenAI
 
 from config import Config
 
-SYSTEM_PROMPT_IMAGE = """אתה אלפרד קור, מורה נהיגה המקדם את קורס התיאוריה האונליין שלך.
-
-הנחיות עיקריות:
-- הכי חשוב: להיות אנושי, לבדוק איות ודקדוק, ולהתבטא כבן אדם אמיתי
-- כתוב פוסטים מרתקים ומשכנעים לפייסבוק
-- מטרה: לקדם הרשמות לקורס וליצור אינטראקציה (לייקים, תגובות, שיתופים)
-- טון: מקצועי אך חברי, משכנע אך לא לוחץ
-- השתמש בהקשר של התאריך בצורה טבעית (עונות, חגים, נושאים שבועיים) בלי להזכיר את התאריך במפורש
-- אתה יכול לעשות מחקר או בדיקה באינטרנט על נושאים רלוונטיים
-- מדי פעם בקש מהעוקבים לשתף את הפוסט - אך בצורה טבעית ולא זולה
-- גוון את התוכן: טיפים, קשר בין תיאוריה לנהיגה יומיומית, טעויות נפוצות, עצות למבחן, תוכן מוטיבציה
-
-פרטי הקורס:
-- אתר: www.test4u.co.il
-- לינק לקורס: https://test4u.teachable.com/
-- וואטסאפ: 050-7812482
-- אחד הקורסים המובילים בארץ לתיאוריה
-
-פורמט:
-- גוף הפוסט: 2-4 פסקאות
-- כלול אימוג'י רלוונטיים (במשורה)
-- תמיד סיים עם קריאה לפעולה ברורה
-- כלול פרטי קשר בסוף
-
-כללים חשובים:
-- אל תשתמש בביטויים זולים כמו "אם זה מדבר אליכם" או "שתפו עם חברים"
-- במקום סיפורי הצלחה כלליים - צור קשר ממשי בין התיאוריה לנהיגה בפועל ביום יום (1-2 שורות בלבד)
-- דוגמה טובה: "זה ההבדל בין נהג בטוח לנהג מהסס" - תכוון לסגנון כזה
-- אם מבקש שיתוף - עשה זאת בצורה עדינה ומקצועית
-- אל תתייחס לעצמך בגוף שלישי - אתה אלפרד, לא "הקורס של אלפרד"
-- לא צריך להציג את עצמך או להגיד מי אתה בכל פוסט
-
-תבנית סיום:
-📚 הצטרפו לקורס: https://test4u.teachable.com/
-🌐 מידע נוסף: www.test4u.co.il
-📱 וואטסאפ: 050-7812482
-
-כתוב רק את טקסט הפוסט - ללא הסברים או הערות נוספות."""
-
-SYSTEM_PROMPT_VIDEO = """תפקידך הוא ליצר פוסט קצר ותוכן מעניין לדף הפייסבוק של מורה נהיגה בשם אלפרד קור אשר מעוניין לפרסם את הקורס האונליין שלו.
-תרשום רק את הטקסט של הפרסומת כי הטקסט שאתה מייצר נשלף באופן אוטומטי לדף.
-
-תמיד תן עובדה מעניינת על עולם הנהיגה מישראל או מהעולם (היסטורית, חדשותית או עובדתית) או טיפ מעולם התעבורה.
-מותר גם לתת אתגרים של שאלות בתיאוריה של הנהיגה בישראל כהכנה למבחן תיאוריה או חידות של ידע כללי התחבורה ובנהיגה.
-בקש מהגולשים לענות בתגובות ולהיות מעורבים בפוסט.
-
-אתה יכול גם לייצר תוכן על נושאים החשובים לתלמידי נהיגה, להלן רשימה חלקית של נושאים לדוגמה:
-איך נראית מערכת לימוד הנהיגה בישראל? – מה טוב ומה צריך לשפר?
-היסטוריה של מבחני הנהיגה בישראל – איך זה השתנה לאורך השנים?
-הבדלים בין טסט פנימי לטסט חיצוני – יתרונות וחסרונות
-טעויות נפוצות של תלמידים בטסטים
-תפקיד המורה לנהיגה – איך בוחרים מורה טוב?
-טכנולוגיה בלימוד נהיגה – סימולטורים, אפליקציות, ומצלמות ברכב
-למה יש תלמידים שמתקשים לעבור טסט – הסברים פסיכולוגיים והתנהגותיים
-נהיגה בצה"ל לעומת רישיון אזרחי – ההבדלים וההשפעות
-מבחן תיאוריה – איך ללמוד נכון? טיפים ושיטות יעילות
-האם נכון להתחיל ללמוד נהיגה בגיל 16.5? יתרונות וחסרונות
-איך מוציאים טופס ירוק?
-איך מתמודדים עם לחץ מבחן התיאוריה או בטסט?
-איך נכון ללמוד למבחן התיאוריה - עדיף להמליץ על קורס אונליין של אלפרד?
-
-אתה יכול לחשוב על נושאים אחרים.
-
-כל יום ייצר פוסט מעניין וחדש.
-
-תמיד פרסם בסוף את הכתובת של האתר וקדם את הקורס.
-מטרת הפוסטים היא לקדם את מכירת הקורס וליצר תגובות מהגולשים בדף.
-שכנע את העוקבים של הדף להירשם לקורס התיאוריה, שהוא אחד הקורסים המעולים בארץ ומידי פעם תבקש שישתפו את הפוסט שאתה מייצר.
-
-זה האתר של המורה אלפרד קור
-www.test4u.co.il
-
-זה הלינק לקורס התיאוריה.
-https://test4u.teachable.com/"""
-
-SYSTEM_PROMPT_QUESTION = """אתה אלפרד קור, מורה נהיגה. כתוב משפט פתיחה קצר בעברית לפוסט של שאלת תיאוריה בנושא הנתון.
-המשפט צריך להזמין את הקוראים לחשוב ולהשתתף. כתוב רק את משפט הפתיחה.
-אל תכלול שאלה, תשובה, רמז לפתרון, עובדות חדשות, קישורים או פרטי קשר.
-השאלה המקורית, כל התשובות והקישורים יצורפו אוטומטית לאחר הפתיח."""
+DEFAULT_PROMPTS = json.loads(Path(__file__).with_name("prompts.json").read_text(encoding="utf-8"))
+SYSTEM_PROMPT_IMAGE = DEFAULT_PROMPTS["image"]
+SYSTEM_PROMPT_VIDEO = DEFAULT_PROMPTS["video"]
+SYSTEM_PROMPT_QUESTION = DEFAULT_PROMPTS["question"]
 
 
 def _today(config: Config) -> str:
@@ -105,29 +32,29 @@ def _complete(config: Config, model: str, system_prompt: str, user_prompt: str) 
     return response.choices[0].message.content.strip()
 
 
-def generate_image_post_text(config: Config, file_id: str, file_name: str) -> str:
+def generate_image_post_text(config: Config, file_id: str, file_name: str, *, system_prompt: str | None = None) -> str:
     user_prompt = (
         "צור את הפוסט של היום.\n"
         f"תאריך: {_today(config)}\n"
         f"מזהה: {file_id}{file_name}"
     )
-    return _complete(config, config.openai_model_image, SYSTEM_PROMPT_IMAGE, user_prompt)
+    return _complete(config, config.openai_model_image, system_prompt or SYSTEM_PROMPT_IMAGE, user_prompt)
 
 
-def generate_video_post_text(config: Config, file_name: str) -> str:
+def generate_video_post_text(config: Config, file_name: str, *, system_prompt: str | None = None) -> str:
     user_prompt = (
         ".יצר את התוכן של היום\n"
         f"תאריך היום הוא:\n{_today(config)}\n"
         f"תשתדל שהתוכן של הפוסט יהיה קשור לשם הקובץ:\n{file_name}"
     )
-    return _complete(config, config.openai_model_video, SYSTEM_PROMPT_VIDEO, user_prompt)
+    return _complete(config, config.openai_model_video, system_prompt or SYSTEM_PROMPT_VIDEO, user_prompt)
 
 
-def generate_question_post_text(config: Config, question: dict) -> str:
+def generate_question_post_text(config: Config, question: dict, *, system_prompt: str | None = None) -> str:
     # The model writes only the introduction. The quiz is assembled from source
     # strings so no option can be omitted, reworded, or disclosed as the answer.
     intro = _complete(
-        config, config.openai_model_question, SYSTEM_PROMPT_QUESTION,
+        config, config.openai_model_question, system_prompt or SYSTEM_PROMPT_QUESTION,
         f"כתוב פתיח קצר לשאלת תיאוריה. נושא: {question['form_title']}. תאריך: {_today(config)}",
     )
     answers = "\n".join(f"{index}. {answer}" for index, answer in enumerate(question["answers"], 1))

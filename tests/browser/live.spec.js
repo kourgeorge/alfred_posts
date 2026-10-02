@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 // Opt-in read-only production check. Supply STUDIO_PASSWORD through the environment.
-// No post, schedule, or service secret is modified.
+// No post, schedule, or service secret is modified. STUDIO_PROMPT_SAVE_CHECK also
+// saves one prompt with its existing text to verify the full worker round trip.
 test('live login, private drafts and credential status',async({page})=> {
   test.skip(!process.env.STUDIO_LIVE_CHECK,'Set STUDIO_LIVE_CHECK=1 for the production read-only check.');
   const errors=[];page.on('pageerror',error=>errors.push(error.name));
@@ -28,6 +29,27 @@ test('live login, private drafts and credential status',async({page})=> {
   await page.getByRole('link',{name:'Settings',exact:true}).click();
   for(const key of ['OPENAI_API_KEY','FB_PAGE_ACCESS_TOKEN','GOOGLE_SERVICE_ACCOUNT_JSON'])
     await expect(page.locator(`[data-secret="${key}"]`)).toHaveText('Configured');
+  await page.getByRole('button',{name:'AI prompts',exact:true}).click();
+  for(const type of ['Photo','Video','Question']) {
+    await page.getByRole('button',{name:type,exact:true}).click();
+    await expect(page.getByLabel(`${type} prompt`)).not.toHaveValue('');
+    await expect(page.getByRole('button',{name:'Save prompt',exact:true})).toBeDisabled();
+  }
+  if(process.env.STUDIO_PROMPT_SAVE_CHECK) {
+    test.setTimeout(240000);
+    const original=await page.getByLabel('Question prompt').inputValue();
+    await page.getByLabel('Question prompt').fill(original+'\n');
+    await page.getByRole('button',{name:'Save prompt',exact:true}).click();
+    await expect(page.locator('#toast')).toContainText('Prompt saved.',{timeout:180000});
+    await page.reload();
+    await page.getByLabel('Password',{exact:true}).fill(password);
+    await page.getByRole('button',{name:'Open studio'}).click();
+    await page.getByRole('button',{name:'AI prompts',exact:true}).click();
+    await page.getByRole('button',{name:'Question',exact:true}).click();
+    await expect(page.getByLabel('Question prompt')).toHaveValue(original);
+    await expect(page.getByRole('button',{name:'Save prompt',exact:true})).toBeDisabled();
+  }
+  await page.screenshot({path:'test-results/live-prompts.png',fullPage:true});
   expect(await page.evaluate(()=>[localStorage.length,sessionStorage.length])).toEqual([0,0]);
   await page.locator('.sidebar').getByRole('button',{name:'Lock studio',exact:true}).click();
   await expect(page.getByRole('heading',{name:'A space of your own.'})).toBeVisible();

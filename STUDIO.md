@@ -98,6 +98,33 @@ The default timezone is `Asia/Jerusalem`; daylight saving is handled by IANA tim
 rules. The calendar displays each recurring task's chosen local time. Individual
 post dates in the dashboard are shown in Israel time.
 
+## AI prompts
+
+Open **Settings → AI prompts**, choose **Photo**, **Video**, or **Question**, edit
+the instructions, and select **Save prompt**. Each format is saved separately.
+The save runs through the automation worker; wait for the saved confirmation.
+Prompts can contain up to 8,000 characters and support Hebrew and other languages.
+
+**Restore default** loads the original instructions into the editor; select
+**Save prompt** to apply them. **Discard changes** reloads the current saved
+instructions. Unsaved edits survive switching formats or dashboard pages during
+the session. Locking or refreshing the studio clears unsaved edits.
+
+Saved prompts apply to the next manual or recurring generation. Existing drafts
+and one-time scheduled captions keep their reviewed text. A generation already
+in progress uses the prompt it started with. Use **Preview a new post** to open
+the composer, then generate a draft to review the result.
+
+The date and media details are supplied automatically. The question prompt controls
+the introduction; the original question, all answer choices, and course links are
+assembled separately. The existing accuracy instructions are still appended.
+
+Custom prompts and per-format revisions live in private `state.json`, without a
+database. Concurrent edits to the same format are rejected instead of overwriting
+newer instructions. Defaults in `prompts.json` are shared by the editor and Python
+generator. Standalone command-line posting uses those defaults; dashboard overrides
+apply to the private automation worker.
+
 ## Credentials
 
 Settings can replace the Facebook Page token, Page ID, OpenAI API key/model, Google

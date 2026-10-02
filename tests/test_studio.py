@@ -19,7 +19,8 @@ class FakeMedia:
         self.changed = False
         self.ready = False
 
-    def prepare(self, kind, used):
+    def prepare(self, kind, used, prompt=None):
+        self.last_prompt = prompt
         return {"text": "Original caption", "source": {"key": f"{kind}-source", "name": "A source", "sha256": digest(b"original")}, "preview": "sample"}
 
     def download(self, draft):
@@ -59,6 +60,39 @@ class StudioTest(unittest.TestCase):
     def test_all_three_formats_generate(self):
         for kind in ("image", "video", "question"):
             self.assertEqual(self.generate(kind, "generate-" + kind)["type"], kind)
+
+    def test_saved_prompts_are_independent_and_only_change_future_generation(self):
+        existing = copy.deepcopy(self.generate())
+        for kind in ("image", "video", "question"):
+            prompt = f"Custom {kind} instructions בעברית"
+            self.app.command({"id": f"save-prompt-{kind}", "action": "save_prompt", "type": kind, "prompt": prompt, "revision": 0})
+            self.generate(kind, "custom-" + kind)
+            self.assertEqual(self.media.last_prompt, prompt)
+        self.assertEqual(next(d for d in self.store.state["drafts"] if d["id"] == existing["id"]), existing)
+        self.assertEqual(self.store.state["prompt_revisions"], {"image": 1, "video": 1, "question": 1})
+
+    def test_stale_prompt_edit_is_rejected_without_overwriting_saved_instructions(self):
+        self.app.command({"id": "prompt-save-1", "action": "save_prompt", "type": "image", "prompt": "First save", "revision": 0})
+        with self.assertRaisesRegex(RuntimeError, "another session"):
+            self.app.command({"id": "prompt-save-2", "action": "save_prompt", "type": "image", "prompt": "Stale save", "revision": 0})
+        self.assertEqual(self.store.state["prompts"]["image"], "First save")
+
+    def test_bad_prompt_settings_do_not_save_or_require_provider_credentials(self):
+        app = Studio(self.store, lambda: self.fail("Saving prompts must not initialize provider clients"))
+        for i, prompt in enumerate([None, 123, "  ", "x" * 8001]):
+            with self.subTest(prompt_type=type(prompt)), self.assertRaises(RuntimeError):
+                app.command({"id": f"invalid-prompt-{i}", "action": "save_prompt", "type": "image", "prompt": prompt, "revision": 0})
+        self.assertNotIn("prompts", self.store.state)
+        app.command({"id": "valid-prompt-1", "action": "save_prompt", "type": "video", "prompt": "  Write clearly.  ", "revision": 0})
+        self.assertEqual(self.store.state["prompts"]["video"], "Write clearly.")
+
+    def test_recurring_generation_uses_latest_saved_prompt(self):
+        self.store.state["schedules"] = [{"id": "scheduled-prompt", "name": "Morning", "type": "image", "mode": "draft",
+            "days": [4], "time": "09:00", "timezone": "Asia/Jerusalem", "enabled": True}]
+        self.app.command({"id": "scheduled-prompt-save", "action": "save_prompt", "type": "image", "prompt": "Scheduled instructions", "revision": 0})
+        self.app.tick(datetime(2026, 10, 2, 6, 37, tzinfo=timezone.utc))
+        self.assertEqual(self.media.last_prompt, "Scheduled instructions")
+        self.assertEqual(self.media.posts, [])
 
     def test_publish_uses_edited_caption_and_same_source(self):
         d = self.generate()

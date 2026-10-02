@@ -1,5 +1,6 @@
 import './style.css';
 import { icon } from './icons.js';
+import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
 import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, inZone, zonedParts, sourceUrl } from './utils.js';
@@ -22,6 +23,10 @@ let toastTimer;
 const edits = new Map();
 const editRevisions = new Map();
 let editorSnapshot = null;
+let settingsView = 'connections';
+let promptType = 'image';
+let promptSnapshot = null;
+const promptEdits = new Map();
 const route = () => ['overview','create','schedule','activity','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 const currentDraft = () => state.drafts.find(d => d.id === selectedDraft);
 const draftText = draft => edits.get(draft.id) ?? draft.text;
@@ -140,9 +145,30 @@ function activityPage() {
 }
 
 function settingsPage() {
+  const prompts = settingsView === 'prompts';
+  return `${heading('MAKE YOURSELF AT HOME', prompts?'Your voice, in every post.':'The keys to your studio.', prompts?'Shape the tone, language, and style of each kind of post.':'Update your connections in one place. Saved keys stay private.')}
+    <div class="filter-bar settings-views" role="group" aria-label="Settings sections">${[['connections','Connections'],['prompts','AI prompts']].map(([view,label])=>`<button data-action="settings-view" data-view="${view}" aria-pressed="${settingsView===view}" class="${settingsView===view?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
+    ${prompts?promptsPage():connectionsPage()}`;
+}
+
+function promptsPage() {
+  const edit=promptEdits.get(promptType);
+  const text=edit?.text??state.prompts?.[promptType]??defaultPrompts[promptType];
+  promptSnapshot={type:promptType,text,revision:edit?.revision??state.prompt_revisions?.[promptType]??0};
+  return `<div class="settings-layout"><form id="prompt-form" class="panel prompt-panel">
+    <div class="section-title"><div><h2>Caption instructions</h2><p>A separate prompt for each post format.</p></div>${icon('spark')}</div>
+    <div class="format-picker" role="group" aria-label="Prompt format">${Object.entries(typeNames).map(([type,label])=>`<button type="button" class="format-option ${promptType===type?'selected':''}" data-action="prompt-type" data-type="${type}" aria-pressed="${promptType===type}" ${blocked()}>${icon(type)}${label}${promptEdits.has(type)?'<span class="prompt-unsaved" title="Unsaved changes">Edited</span>':''}</button>`).join('')}</div>
+    <label for="prompt-text">${e(typeNames[promptType])} prompt</label><textarea id="prompt-text" name="prompt" dir="auto" maxlength="8000" rows="16" required spellcheck="false" ${pending?'readonly':''}>${e(text)}</textarea>
+    <div class="caption-meta"><span id="prompt-count">${text.length.toLocaleString()} / 8,000 characters</span><span id="prompt-state" role="status">${edit?'Unsaved changes':text===defaultPrompts[promptType]?'Default prompt':'Saved custom prompt'}</span></div>
+    <p class="field-hint">${promptType==='question'?'This prompt controls the introduction. The original question, every answer choice, and course links are added automatically.':'The current date and selected media details are added automatically. Write instructions for the caption you want.'}</p>
+    <div class="prompt-tools"><button type="button" class="text-link" data-action="default-prompt" ${blocked()}>${icon('refresh')} Restore default</button><button type="button" class="text-link" data-action="discard-prompt" ${pending||!edit?'disabled':''}>Discard changes</button></div>
+    <div class="settings-save prompt-save"><span>${icon('lock')} Saved privately for future posts.</span><button type="submit" class="btn primary" ${pending||!edit||!text.trim()?'disabled':''}>${icon('check')} Save prompt</button></div>
+  </form><aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('spark')}</span><h3>Make it sound like you.</h3><p>Describe your preferred language, tone, caption length, contact details, and call to action.</p><p>Save each format separately. Restoring a default takes effect after you save it.</p></div><div class="panel security-note"><h3>Save. Generate. Preview.</h3><p>New drafts and recurring posts use the latest saved prompt. Existing drafts keep the captions you already reviewed.</p><button id="prompt-preview" type="button" class="btn secondary" data-action="new" data-type="${promptType}" ${pending||edit?'disabled':''}>${icon('edit')} Preview a new post</button><p>${demo?'Demo saves are temporary. Generated demo captions remain sample text.':'A generation already in progress keeps the prompt it started with.'}</p></div></aside></div>`;
+}
+
+function connectionsPage() {
   const configured = name => `<span data-secret="${name}" class="secret-state ${secretNames.has(name)||demo?'set':''}">${demo?'Demo':!secretsLoaded?'Not checked':secretNames.has(name)?'Configured':'Not configured'}</span>`;
-  return `${heading('MAKE YOURSELF AT HOME','The keys to your studio.','Update your connections in one place. Saved keys stay private.')}
-    <div class="settings-layout"><form id="settings-form" class="settings-form"><section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol facebook-symbol">f</span><div><h2>Facebook</h2><p>The page you’re sharing with.</p></div></div>${configured('FB_PAGE_ACCESS_TOKEN')}</div><label for="fb-token">Page access token</label><input id="fb-token" type="password" name="FB_PAGE_ACCESS_TOKEN" placeholder="Paste a new page access token" autocomplete="new-password" /><p class="field-hint">Needs pages_manage_posts and pages_read_engagement permission.</p><label for="fb-page">Facebook page ID <span>Optional update</span></label><input id="fb-page" name="FB_PAGE_ID" placeholder="168846083148109" inputmode="numeric" autocomplete="off" /></section>
+  return `<div class="settings-layout"><form id="settings-form" class="settings-form"><section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol facebook-symbol">f</span><div><h2>Facebook</h2><p>The page you’re sharing with.</p></div></div>${configured('FB_PAGE_ACCESS_TOKEN')}</div><label for="fb-token">Page access token</label><input id="fb-token" type="password" name="FB_PAGE_ACCESS_TOKEN" placeholder="Paste a new page access token" autocomplete="new-password" /><p class="field-hint">Needs pages_manage_posts and pages_read_engagement permission.</p><label for="fb-page">Facebook page ID <span>Optional update</span></label><input id="fb-page" name="FB_PAGE_ID" placeholder="168846083148109" inputmode="numeric" autocomplete="off" /></section>
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>A little help finding the right words.</p></div></div>${configured('OPENAI_API_KEY')}</div><label for="openai-key">API key</label><input id="openai-key" type="password" name="OPENAI_API_KEY" placeholder="Paste a new OpenAI API key" autocomplete="new-password" /><p class="field-hint">Used to generate Hebrew captions. API usage is billed to your OpenAI account.</p><label for="openai-model">Caption model <span>Optional update · all formats</span></label><input id="openai-model" name="MODEL" placeholder="gpt-4.1-mini" autocomplete="off" /></section>
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol google-symbol">${icon('image')}</span><div><h2>Google Drive & Forms</h2><p>Your library of photos, videos, and questions.</p></div></div>${configured('GOOGLE_SERVICE_ACCOUNT_JSON')}</div><details><summary>Update content sources ${icon('chevron')}</summary><label for="google-key">Service account JSON</label><textarea id="google-key" name="GOOGLE_SERVICE_ACCOUNT_JSON" class="credential-textarea" placeholder="Paste the new service account JSON" spellcheck="false" autocomplete="off"></textarea><p class="field-hint">Share each media folder and question form with the service account email.</p>${[['DRIVE_FOLDER_ID','Photo folder ID'],['DRIVE_FOLDER_ID_VIDEO','Video folder ID'],['DRIVE_FOLDER_ID_QUESTIONS','Question forms folder ID']].map(([name,label])=>`<label for="${name}">${label}</label><input id="${name}" name="${name}" placeholder="Leave empty to keep the current folder" autocomplete="off" />`).join('')}</details></section>
     <div id="settings-error" class="form-error" role="alert">${e(secretsError)}</div><div class="settings-save"><span>${icon('lock')} Blank fields keep existing values.</span><button type="submit" class="btn primary">${icon('check')} Save credentials</button></div></form>
@@ -153,7 +179,8 @@ function render() { signedIn ? shell() : login(); }
 function lockStudio() {
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
-  editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;render();
+  editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
+  promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();
 }
 window.addEventListener('studio-locked', lockStudio);
 function navigate(page) { mobileNav=false; if(location.hash===`#${page}`) render();else location.hash=page; }
@@ -169,6 +196,7 @@ async function sync() {
         const old=pending; pending=null;
         if(op.status==='failed') toast(op.error,true);
         else {
+          if(old.promptType)promptEdits.delete(old.promptType);
           if(op.result && state.drafts.some(d=>d.id===op.result)) {
             selectedDraft=op.result;selectedType=currentDraft().type;edits.delete(op.result);editRevisions.delete(op.result);
           }
@@ -184,12 +212,13 @@ async function sync() {
 async function command(payload,label,success) {
   if(pending) return toast('Let the current request finish first.');
   const id=crypto.randomUUID();
-  pending={id,label,success,started:Date.now()}; render();
+  pending={id,label,success,started:Date.now(),promptType:payload.action==='save_prompt'?payload.type:null}; render();
   try {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
       const result=demoCommand(state,{...payload,id});
       if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);editRevisions.delete(result);}
+      if(payload.action==='save_prompt')promptEdits.delete(payload.type);
       pending=null;render();toast(`${success} (demo only)`);
     } else {
       await github.dispatch({...payload,id});
@@ -217,7 +246,7 @@ function scheduleModal(id) {
 
 document.addEventListener('submit', async event=> {
   const form=event.target;
-  if (!['login-form','schedule-form','one-time-form','settings-form'].includes(form.id)) return;
+  if (!['login-form','schedule-form','one-time-form','settings-form','prompt-form'].includes(form.id)) return;
   event.preventDefault();
   const data=new FormData(form);
   if(form.id==='login-form') {
@@ -227,6 +256,12 @@ document.addEventListener('submit', async event=> {
       state=await github.readState();signedIn=true;demo=false;form.reset();
       render();if(route()==='settings')loadSecrets();
     } catch(error) { signedIn=false;github.disconnect();login(error.message); }
+  }
+  if(form.id==='prompt-form') {
+    if(!promptSnapshot || pending)return;
+    const value=promptSnapshot.text.trim();
+    if(!value||value.length>8000)return toast('Enter a prompt of 1–8,000 characters.',true);
+    await command({action:'save_prompt',type:promptSnapshot.type,prompt:value,revision:promptSnapshot.revision},'Saving your prompt…','Prompt saved. New posts will use these instructions.');
   }
   if(form.id==='schedule-form') {
     try {
@@ -261,6 +296,15 @@ document.addEventListener('submit', async event=> {
 });
 
 document.addEventListener('input',event=> {
+  if(event.target.id==='prompt-text'&&promptSnapshot&&!pending) {
+    promptSnapshot.text=event.target.value;
+    promptEdits.set(promptType,{text:promptSnapshot.text,revision:promptSnapshot.revision});
+    document.querySelector('#prompt-count').textContent=`${promptSnapshot.text.length.toLocaleString()} / 8,000 characters`;
+    document.querySelector('#prompt-state').textContent='Unsaved changes';
+    document.querySelector('#prompt-form [type=submit]').disabled=!promptSnapshot.text.trim();
+    document.querySelector('[data-action="discard-prompt"]').disabled=false;
+    document.querySelector('#prompt-preview').disabled=true;
+  }
   if(event.target.id==='caption'&&currentDraft()) {
     if(!editRevisions.has(selectedDraft))editRevisions.set(selectedDraft,editorSnapshot.revision);
     edits.set(selectedDraft,event.target.value);editorSnapshot.text=event.target.value;
@@ -282,6 +326,15 @@ document.addEventListener('click',async event=> {
   const action=button.dataset.action;
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
   if(action==='logout') lockStudio();
+  if(action==='settings-view') {
+    settingsView=button.dataset.view;render();
+    if(settingsView==='connections'&&!demo&&!secretsLoaded)loadSecrets();
+  }
+  if(action==='prompt-type') {promptType=button.dataset.type;render();}
+  if(action==='default-prompt') {
+    promptEdits.set(promptType,{text:defaultPrompts[promptType],revision:promptSnapshot.revision});render();
+  }
+  if(action==='discard-prompt') {promptEdits.delete(promptType);render();}
   if(action==='menu') {mobileNav=!mobileNav;render();}
   if(action==='new') {selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}
@@ -317,7 +370,7 @@ document.addEventListener('click',async event=> {
 window.addEventListener('hashchange',()=> {mobileNav=false;render();if(route()==='settings'&&signedIn&&!demo&&!secretsLoaded)loadSecrets();});
 async function loadSecrets() {
   try {secretNames=await github.secretsStatus();secretsLoaded=true;}catch(error){secretsError=error.message;}
-  if(signedIn&&route()==='settings') {
+  if(signedIn&&route()==='settings'&&settingsView==='connections') {
     document.querySelectorAll('[data-secret]').forEach(el=> {
       const exists=secretNames.has(el.dataset.secret);el.textContent=exists?'Configured':'Not configured';el.classList.toggle('set',exists);
     });

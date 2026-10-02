@@ -22,6 +22,13 @@ export function demoCommand(state, command) {
   const draft = state.drafts.find(d => d.id === command.draft_id);
   let result;
   switch (command.action) {
+    case 'save_prompt': {
+      state.prompts ??= {}; state.prompt_revisions ??= {};
+      if (command.revision !== (state.prompt_revisions[command.type] ?? 0)) throw new Error('This prompt changed. Discard your changes before editing again.');
+      state.prompts[command.type] = command.prompt.trim();
+      state.prompt_revisions[command.type] = command.revision + 1;
+      break;
+    }
     case 'generate': {
       const sample = demoState().drafts.find(d => d.type === command.type);
       state.drafts.unshift({...sample, id: command.id, created_at: new Date().toISOString()});

@@ -43,7 +43,7 @@ class MediaService:
     def __init__(self, config):
         self.config = config
 
-    def prepare(self, post_type, posted):
+    def prepare(self, post_type, posted, prompt=None):
         c = self.config
         if post_type == "question":
             item = drive.pick_question(c, posted_ids=set(posted))
@@ -52,14 +52,14 @@ class MediaService:
                       "question_id": item["question_id"], "name": item["form_title"],
                       "question": item["question"]["text"], "answers": item["answers"],
                       "url": f"https://docs.google.com/forms/d/{item['form_id']}/edit"}
-            text = content.generate_question_post_text(c, item)
+            text = content.generate_question_post_text(c, item, system_prompt=prompt)
         else:
             item = (drive.pick_video if post_type == "video" else drive.pick_image)(c, posted_ids=set(posted))
             data = drive.download_drive_file(c, item["id"])
             source = {"key": item["id"], "id": item["id"], "name": item["name"],
                       "url": f"https://drive.google.com/file/d/{item['id']}/view"}
-            text = (content.generate_video_post_text(c, item["name"]) if post_type == "video"
-                    else content.generate_image_post_text(c, item["id"], item["name"]))
+            text = (content.generate_video_post_text(c, item["name"], system_prompt=prompt) if post_type == "video"
+                    else content.generate_image_post_text(c, item["id"], item["name"], system_prompt=prompt))
         source["sha256"] = digest(data)
         return {"source": source, "text": text, "preview": None if post_type == "video" else thumbnail(data)}
 

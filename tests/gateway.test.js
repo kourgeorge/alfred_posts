@@ -55,6 +55,9 @@ test('only fixed repository endpoints and approved service secrets are available
     const command = {id:'request-123',action:'generate',type:'image'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:command}), env)).status, 204);
     assert.deepEqual(JSON.parse(calls[1].options.body), {ref:'main',inputs:{command:JSON.stringify(command)}});
+    const prompt = {id:'prompt-save-123',action:'save_prompt',type:'question',prompt:'Write a short intro. שלום',revision:0};
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:prompt}), env)).status, 204);
+    assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), prompt);
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
@@ -62,6 +65,8 @@ test('only fixed repository endpoints and approved service secrets are available
     for (const path of ['/repos/another/repository', '/api/secrets/GITHUB_TOKEN', '/api/secrets/INITIAL_HISTORY', '/api/secrets/%2e%2e'])
       assert.equal((await worker.fetch(request(path, {method:'PUT',token,value:{}}), env)).status, 404);
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{id:'123',action:'run_shell'}}), env)).status, 400);
+    for (const invalid of [{prompt:''},{prompt:'x'.repeat(8001)},{type:'unknown'},{revision:-1},{revision:null}])
+      assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{...prompt,...invalid}}), env)).status, 400);
     assert.equal(calls.length, count);
   } finally { upstream.mock.restore(); }
 });

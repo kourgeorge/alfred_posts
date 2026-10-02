@@ -69,7 +69,7 @@ class Studio:
             raise ValueError("You have 30 unfinished drafts. Publish or delete some before creating more.")
         used = state["posted"].get(post_type, []) + [d["source"]["key"] for d in state["drafts"]
                if d["type"] == post_type and d["status"] != "deleted"]
-        prepared = self.media.prepare(post_type, used)
+        prepared = self.media.prepare(post_type, used, prompt=state.get("prompts", {}).get(post_type))
         draft = {"id": draft_id, "type": post_type, "status": "draft", "revision": 1,
                  "created_at": now_iso(), "schedule_id": schedule_id, **prepared}
 
@@ -141,6 +141,19 @@ class Studio:
 
     def execute(self, command):
         action = command.get("action")
+        if action == "save_prompt":
+            kind, prompt = command.get("type"), command.get("prompt")
+            if kind not in TYPES:
+                raise ValueError("Unknown post type.")
+            if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 8000:
+                raise ValueError("The prompt must contain 1–8,000 characters.")
+            def save_prompt(state):
+                revisions = state.setdefault("prompt_revisions", {})
+                if type(command.get("revision")) is not int or command["revision"] != revisions.get(kind, 0):
+                    raise ValueError("This prompt changed in another session. Discard your changes to load the saved prompt before editing again.")
+                state.setdefault("prompts", {})[kind] = prompt.strip()
+                revisions[kind] = revisions.get(kind, 0) + 1
+            return self.store.change(save_prompt)
         if action == "generate":
             return self.generate(command.get("type"), command["id"])
         if action == "publish":
