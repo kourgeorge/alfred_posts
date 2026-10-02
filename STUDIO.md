@@ -57,7 +57,7 @@ connection stored as a runtime secret. The gateway cannot proxy arbitrary GitHub
 URLs, repositories, branches, workflows, or secret names.
 
 To package a gateway update, run `python3 scripts/package_gateway.py`. The archive
-contains only the Worker entrypoint, a landing link, and hosting metadata. Commit
+contains only the Worker entrypoint (`index.js`) and hosting metadata. Commit
 and push the exact source state to the Sites source repository, save that version
 with the archive, then deploy it. The Sites audience is public so the GitHub Pages
 client can reach the API; the application password protects every private endpoint.
