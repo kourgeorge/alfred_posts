@@ -20,6 +20,8 @@ let mobileNav = false;
 let polling = false;
 let toastTimer;
 const edits = new Map();
+const editRevisions = new Map();
+let editorSnapshot = null;
 const route = () => ['overview','create','schedule','activity','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 const currentDraft = () => state.drafts.find(d => d.id === selectedDraft);
 const draftText = draft => edits.get(draft.id) ?? draft.text;
@@ -93,6 +95,7 @@ function empty(ico,title,description) { return `<div class="empty-state">${icon(
 
 function composer() {
   const draft = currentDraft();
+  editorSnapshot = draft ? {id: draft.id, revision: editRevisions.get(draft.id) ?? draft.revision, text: draftText(draft)} : null;
   const available = state.drafts.filter(d=>['draft','scheduled','failed'].includes(d.status));
   const canEdit = editable(draft);
   return `${heading('CREATE & PREVIEW','Good ideas, ready to share.','Pick a format, make it yours, and see exactly what goes out.')}
@@ -101,7 +104,7 @@ function composer() {
     ${available.length?`<label for="draft-select">Open a saved draft</label><select id="draft-select"><option value="">Choose a draft…</option>${available.map(d=>`<option value="${e(d.id)}" ${d.id===selectedDraft?'selected':''}>${e(typeNames[d.type])} · ${e(d.source.name)}</option>`).join('')}</select>`:''}
     ${draft?`<div class="source-label">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer" aria-label="Open original media">${icon('external')}</a>`:''}</div><label for="caption">Post caption <span>Hebrew supported</span></label><textarea id="caption" dir="auto" maxlength="12000" ${canEdit?'':'readonly'}>${e(draftText(draft))}</textarea><div class="caption-meta"><span id="caption-count">${draftText(draft).length.toLocaleString()} characters</span><span id="edit-state">${edits.has(draft.id)?'Unsaved changes':'Saved draft'}</span></div>
     ${draft.error?`<div class="form-error">${e(draft.error)}</div>`:''}${draft.status==='scheduled'?`<div class="inline-note">${icon('calendar')} Scheduled for ${e(formatDate(draft.scheduled_at))}</div>`:''}
-    ${canEdit?`<div class="editor-actions"><button class="btn secondary" data-action="save-draft" ${blocked()}>${icon('check')} Save draft</button><button class="icon-btn danger" data-action="delete-draft" aria-label="Delete draft" ${blocked()}>${icon('trash')}</button></div>`:''}`:empty('edit','A fresh draft starts here','Generate a post or open a saved draft to edit the caption.')}</div>
+    ${canEdit?`<div class="editor-actions"><button class="text-link" data-action="revert-edits">Revert edits</button><button class="btn secondary" data-action="save-draft" ${blocked()}>${icon('check')} Save draft</button><button class="icon-btn danger" data-action="delete-draft" aria-label="Delete draft" ${blocked()}>${icon('trash')}</button></div>`:''}`:empty('edit','A fresh draft starts here','Generate a post or open a saved draft to edit the caption.')}</div>
     ${draft&&canEdit?`<div class="publish-actions"><button class="btn secondary" data-action="schedule-draft" ${blocked()}>${icon('calendar')} ${draft.status==='scheduled'?'Change time':'Schedule post'}</button><button class="btn primary" data-action="publish" ${blocked()}>${icon('send')} Publish now</button></div>${draft.status==='scheduled'?'<button class="text-link cancel-schedule" data-action="cancel-draft">Move back to drafts</button>':''}`:''}</section>
     <section class="preview-column"><div class="preview-heading"><span class="eyebrow">LIVE PREVIEW</span><span><b class="facebook-mini">f</b> Facebook</span></div><article class="facebook-card"><div class="facebook-header"><div class="avatar">AK</div><div><strong>מורה נהיגה - אלפרד קור</strong><span>${demo?'Demo preview':'Post preview'} · ${icon('globe')}</span></div><span class="facebook-more">···</span></div><div id="preview-caption" class="preview-caption" dir="auto">${draft?e(draftText(draft)):'Your next post starts with an idea.\nGenerate a draft to see it here.'}</div>${mediaPreview(draft)}<div class="facebook-reactions"><span>♡</span><span>Like</span><span>Comment</span><span>Share</span></div></article><p class="preview-note">${icon('info')} A close preview of your post. Facebook may display media and line breaks differently.</p>${draft?.facebook_url?`<a class="btn secondary" href="${e(sourceUrl(draft.facebook_url))}" target="_blank" rel="noopener noreferrer">View on Facebook ${icon('external')}</a>`:''}</section></div>`;
 }
@@ -162,7 +165,7 @@ async function sync() {
         if(op.status==='failed') toast(op.error,true);
         else {
           if(op.result && state.drafts.some(d=>d.id===op.result)) {
-            selectedDraft=op.result;selectedType=currentDraft().type;edits.delete(op.result);
+            selectedDraft=op.result;selectedType=currentDraft().type;edits.delete(op.result);editRevisions.delete(op.result);
           }
           toast(old.success);
         }
@@ -181,7 +184,7 @@ async function command(payload,label,success) {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
       const result=demoCommand(state,{...payload,id});
-      if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);}
+      if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);editRevisions.delete(result);}
       pending=null;render();toast(`${success} (demo only)`);
     } else {
       await github.dispatch({...payload,id});
@@ -192,7 +195,8 @@ async function command(payload,label,success) {
 
 function draftCommand(action,extra={}) {
   const d=currentDraft();
-  return {action,draft_id:d.id,revision:d.revision,text:draftText(d),...extra};
+  const snapshot=editorSnapshot?.id===d.id?editorSnapshot:{revision:d.revision,text:draftText(d)};
+  return {action,draft_id:d.id,revision:snapshot.revision,text:snapshot.text,...extra};
 }
 
 function modal(title,description,body) {
@@ -253,7 +257,8 @@ document.addEventListener('submit', async event=> {
 
 document.addEventListener('input',event=> {
   if(event.target.id==='caption'&&currentDraft()) {
-    edits.set(selectedDraft,event.target.value);
+    if(!editRevisions.has(selectedDraft))editRevisions.set(selectedDraft,editorSnapshot.revision);
+    edits.set(selectedDraft,event.target.value);editorSnapshot.text=event.target.value;
     document.querySelector('#preview-caption').textContent=event.target.value;
     document.querySelector('#caption-count').textContent=`${event.target.value.length.toLocaleString()} characters`;
     document.querySelector('#edit-state').textContent='Unsaved changes';
@@ -271,12 +276,13 @@ document.addEventListener('click',async event=> {
   if(!button||button.disabled) return;
   const action=button.dataset.action;
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
-  if(action==='logout') {closeModal();github.disconnect();demo=false;signedIn=false;pending=null;state={drafts:[],schedules:[],operations:[]};edits.clear();secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;render();}
+  if(action==='logout') {closeModal();github.disconnect();demo=false;signedIn=false;pending=null;state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;render();}
   if(action==='menu') {mobileNav=!mobileNav;render();}
   if(action==='new') {selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}
   if(action==='open-draft') {selectedDraft=button.dataset.id;selectedType=currentDraft().type;navigate('create');}
   if(action==='generate') await command({action:'generate',type:selectedType},'Creating your draft…','Your draft is ready to review');
+  if(action==='revert-edits') {edits.delete(selectedDraft);editRevisions.delete(selectedDraft);render();}
   if(action==='save-draft') await command(draftCommand('save_draft'),'Saving your draft…','Draft saved');
   if(action==='publish') {
     modal('Ready for your audience?',demo?'This is a demo. No post will be sent to Facebook.':'This publishes the selected media and the caption shown in your preview to Alfred Kor’s Facebook page.',`<div class="publish-summary">${typeIcon(currentDraft().type)}<strong>${e(currentDraft().source.name)}</strong></div><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Keep editing</button><button class="btn primary" data-action="confirm-publish">${icon('send')} ${demo?'Simulate publishing':'Publish to Facebook'}</button></div>`);

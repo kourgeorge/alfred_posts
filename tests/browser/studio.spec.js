@@ -123,6 +123,33 @@ test('Israel local times handle daylight saving changes',()=> {
   expect(nextOccurrence({timezone:'Asia/Jerusalem',time:'09:00',days:[4]},new Date('2026-10-02T07:00:00Z')).toISOString()).toBe('2026-10-09T06:00:00.000Z');
 });
 
+test('a background update cannot replace the caption or revision being previewed',async({page})=> {
+  const remote=demoState();
+  const original=remote.drafts[0].text;
+  let dispatched;
+  await page.clock.install();
+  await page.route('https://api.github.com/**',async route=> {
+    const url=new URL(route.request().url());
+    let body={};
+    if(url.pathname.endsWith('/alfred_posts_automation'))body={private:true,default_branch:'main'};
+    else if(url.pathname.endsWith('/studio.yml'))body={id:1};
+    else if(url.pathname.endsWith('/state.json'))body=remote;
+    else if(url.pathname.endsWith('/dispatches')) {dispatched=JSON.parse(JSON.parse(route.request().postData()).inputs.command);return route.fulfill({status:204,body:''});}
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/');
+  await page.getByLabel('Access key',{exact:true}).fill('test-session-key');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await page.getByRole('button',{name:/A safer journey starts/}).click();
+  await expect(page.locator('#caption')).toHaveValue(original);
+  remote.drafts[0].text='Changed in another tab';remote.drafts[0].revision=2;
+  await page.clock.fastForward(9000);
+  await page.getByRole('button',{name:'Publish now'}).click();
+  await page.getByRole('button',{name:'Publish to Facebook',exact:true}).click();
+  await expect.poll(()=>dispatched?.text).toBe(original);
+  expect(dispatched.revision).toBe(1);
+});
+
 for(const width of [1440,390]) test(`visual pages fit ${width}px viewport`,async({page})=> {
   await page.setViewportSize({width,height:1000});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
