@@ -18,6 +18,9 @@ test('live login, private drafts and credential status',async({page})=> {
     await page.locator('#draft-select').selectOption(`first-preview-${type}-20261002`);
     await expect(page.locator('#caption')).not.toHaveValue('');
     await expect(page.locator('#preview-caption')).not.toBeEmpty();
+    const controls=await page.locator('.composer-controls').boundingBox();
+    const panel=await page.locator('.composer-controls>.panel').first().boundingBox();
+    expect(panel.x+panel.width).toBeLessThanOrEqual(controls.x+controls.width+1);
     if(type!=='video') await expect(page.locator('.post-image')).toBeVisible();
     else await expect(page.getByRole('button',{name:'Watch selected video'})).toBeVisible();
     await page.screenshot({path:`test-results/live-${type}.png`,fullPage:true});

@@ -82,22 +82,10 @@ www.test4u.co.il
 זה הלינק לקורס התיאוריה.
 https://test4u.teachable.com/"""
 
-SYSTEM_PROMPT_QUESTION = """תפקידך הוא ליצר פוסט ותוכן מעניין לדף הפייסבוק של מורה נהיגה בשם אלפרד קור אשר מעוניין לפרסם את הקורס האונליין שלו.
-תרשום רק את הטקסט של הפרסומת כי הטקסט שאתה מייצר נשלף באופן אוטומטי לדף.
-תכלול בפוסט השיווקי והמעניין בין היתר את השאלה הנתונה ותן את תשובות.
-אל תשנה את ניסוח השאלה, כתוב אותה במדויק כפי שהיא נתונה לך בתוך הפוסט.
-אל תשנה את התשובות אולם מותר לך למספר אותם.
-
-תמיד פרסם בסוף את הכתובת של האתר וקדם את הקורס.
-מטרת הפוסטים היא לקדם את מכירת הקורס וליצר תגובות מהגולשים בדף.
-
-השאר את התוכן קצר. לא יותר משתי שורות.
-
-זה האתר של המורה אלפרד קור
-www.test4u.co.il
-
-זה הלינק לקורס התיאוריה.
-https://test4u.teachable.com/"""
+SYSTEM_PROMPT_QUESTION = """אתה אלפרד קור, מורה נהיגה. כתוב משפט פתיחה קצר בעברית לפוסט של שאלת תיאוריה בנושא הנתון.
+המשפט צריך להזמין את הקוראים לחשוב ולהשתתף. כתוב רק את משפט הפתיחה.
+אל תכלול שאלה, תשובה, רמז לפתרון, עובדות חדשות, קישורים או פרטי קשר.
+השאלה המקורית, כל התשובות והקישורים יצורפו אוטומטית לאחר הפתיח."""
 
 
 def _today(config: Config) -> str:
@@ -136,12 +124,16 @@ def generate_video_post_text(config: Config, file_name: str) -> str:
 
 
 def generate_question_post_text(config: Config, question: dict) -> str:
-    answers = "\n".join(question["answers"])
-    user_prompt = (
-        ".יצר את התוכן של היום\n"
-        f"תאריך היום הוא:\n{_today(config)}\n\n"
-        f"נושא השאלה הוא:\n{question['form_title']}\n\n"
-        f"השאלה:\n{question['question']['text']}\n\n"
-        f"ואלה התשובות האפשריות:\n{answers}"
+    # The model writes only the introduction. The quiz is assembled from source
+    # strings so no option can be omitted, reworded, or disclosed as the answer.
+    intro = _complete(
+        config, config.openai_model_question, SYSTEM_PROMPT_QUESTION,
+        f"כתוב פתיח קצר לשאלת תיאוריה. נושא: {question['form_title']}. תאריך: {_today(config)}",
     )
-    return _complete(config, config.openai_model_question, SYSTEM_PROMPT_QUESTION, user_prompt)
+    answers = "\n".join(f"{index}. {answer}" for index, answer in enumerate(question["answers"], 1))
+    return (
+        f"{intro}\n\n{question['question']['text']}\n{answers}\n\n"
+        "מה לדעתכם התשובה הנכונה? כתבו בתגובות.\n"
+        "📚 לומדים לתיאוריה בקצב שלכם: https://test4u.teachable.com/\n"
+        "🌐 www.test4u.co.il"
+    )

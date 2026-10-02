@@ -2,6 +2,9 @@ import copy
 from datetime import datetime, timezone
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
+
+import content
 
 from studio.media import MediaService, digest
 from studio.scheduler import due_slot, parse_future, validate_schedule
@@ -190,6 +193,21 @@ class ScheduleTest(unittest.TestCase):
         for value in ["2020-01-01T09:00:00Z", "2099-01-01T09:00", "invalid"]:
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_future(value)
+
+
+class QuestionContentTest(unittest.TestCase):
+    def test_every_original_choice_is_preserved_without_model_rewriting(self):
+        question = {"form_title": "Traffic signs", "question": {"text": "מה פירוש התמרור?"},
+                    "answers": ["תשובה ראשונה.", "תשובה שנייה.", "תשובה שלישית.", "תשובה רביעית."]}
+        config = SimpleNamespace(openai_model_question="test-model", timezone="Asia/Jerusalem")
+        with patch("content._complete", return_value="בואו נתרגל יחד.") as complete:
+            text = content.generate_question_post_text(config, question)
+        self.assertIn(question["question"]["text"], text)
+        for i, answer in enumerate(question["answers"], 1):
+            self.assertIn(f"{i}. {answer}", text)
+            self.assertEqual(text.count(answer), 1)
+        # The generator never sees answer choices, so it cannot pick a solution.
+        self.assertNotIn(question["answers"][0], complete.call_args.args[3])
 
 
 if __name__ == "__main__":

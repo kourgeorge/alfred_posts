@@ -24,6 +24,13 @@ test('generate, edit preview, save and publish only chosen caption', async ({pag
   await page.getByRole('button',{name:'Create a post',exact:true}).click();
   await page.getByRole('button',{name:'Generate photo draft'}).click();
   await expect(page.locator('#caption')).toBeVisible();
+  // Real library filenames can be much longer than the sample English labels.
+  await page.locator('#draft-select').evaluate(select=>{
+    select.selectedOptions[0].textContent='שם קובץ בעברית ארוכה מאוד '.repeat(12);
+  });
+  const controls=await page.locator('.composer-controls').boundingBox();
+  const panel=await page.locator('.composer-controls>.panel').first().boundingBox();
+  expect(panel.x+panel.width).toBeLessThanOrEqual(controls.x+controls.width+1);
   const caption='A careful caption שלום <script>alert("no")</script>';
   await page.locator('#caption').fill(caption);
   await expect(page.locator('#preview-caption')).toHaveText(caption);

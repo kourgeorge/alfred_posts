@@ -35,8 +35,8 @@ authorization. A browser-only shared password would not protect those APIs.
 
 - **Photo:** selects a Drive image and generates a Hebrew caption.
 - **Video:** selects a Drive video under 50 MB and generates a matching caption.
-- **Question:** selects an illustrated question from Google Forms, preserving its
-  wording and answer options in the generation prompt.
+- **Question:** selects an illustrated question from Google Forms. The original
+  question and every answer option are inserted exactly; AI writes only the introduction.
 - Generate a draft, edit its caption, and review the Facebook preview.
 - **Save draft** keeps the edited text without publishing.
 - **Publish now** publishes that draft after the in-app confirmation.
@@ -87,6 +87,8 @@ This uploads configuration and the existing posted-content history without print
 credential values, then installs `deployment/studio.yml` into the private repo.
 The local `.env`, service-account files, and posted history are ignored by Git.
 The helper requires an authenticated `gh` CLI and the target repo must be private.
+History is imported when the private state branch is first initialized. Subsequent
+command-line runs maintain their own local history independently of the dashboard.
 
 ## How state and retries work
 
