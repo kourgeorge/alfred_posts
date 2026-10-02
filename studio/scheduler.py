@@ -28,16 +28,17 @@ def due_slot(schedule, now=None):
         return None
     now = now or datetime.now(timezone.utc)
     local = now.astimezone(ZoneInfo(schedule["timezone"]))
-    if local.weekday() not in schedule["days"]:
-        return None
     hour, minute = map(int, schedule["time"].split(":"))
-    target = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if schedule.get("starts_at") and target.astimezone(timezone.utc) < datetime.fromisoformat(schedule["starts_at"]):
-        return None
-    age = now - target.astimezone(timezone.utc)
-    slot = f"{local.date()}@{schedule['time']}"
-    if timedelta(0) <= age <= timedelta(hours=2) and slot != schedule.get("last_slot"):
-        return slot
+    for days_ago in (0, 1):
+        target = (local - timedelta(days=days_ago)).replace(hour=hour, minute=minute, second=0, microsecond=0, fold=0)
+        if target.weekday() not in schedule["days"]:
+            continue
+        if schedule.get("starts_at") and target.astimezone(timezone.utc) < datetime.fromisoformat(schedule["starts_at"]):
+            continue
+        age = now - target.astimezone(timezone.utc)
+        slot = f"{target.date()}@{schedule['time']}"
+        if timedelta(0) <= age <= timedelta(hours=2) and slot != schedule.get("last_slot"):
+            return slot
     return None
 
 

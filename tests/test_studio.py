@@ -146,6 +146,16 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(self.media.posts, [])
         self.assertEqual(self.store.state["drafts"][0]["status"], "draft")
 
+    def test_saving_caption_preserves_scheduled_publication(self):
+        d = self.generate()
+        date = "2099-01-05T07:00:00+00:00"
+        self.app.command({"id": "schedule-001", "action": "schedule_draft", "draft_id": d["id"], "revision": 1, "scheduled_at": date})
+        self.app.command({"id": "save-edit-001", "action": "save_draft", "draft_id": d["id"], "revision": 2, "text": "Updated caption"})
+        saved = self.store.state["drafts"][0]
+        self.assertEqual((saved["status"], saved["scheduled_at"]), ("scheduled", date))
+        self.app.tick(datetime(2099, 1, 5, 7, 30, tzinfo=timezone.utc))
+        self.assertEqual(self.media.posts[0][0]["text"], "Updated caption")
+
     def test_recurring_schedule_only_claims_slot_once(self):
         self.store.state["schedules"] = [{"id": "schedule-one", "name": "Morning", "time": "09:00", "days": [0,1,2,3,4,5,6], "timezone": "Asia/Jerusalem", "type": "question", "mode": "publish", "enabled": True}]
         when = datetime(2026, 10, 2, 6, 10, tzinfo=timezone.utc)
@@ -183,6 +193,12 @@ class ScheduleTest(unittest.TestCase):
     def test_duplicate_date_slot(self):
         self.schedule["last_slot"] = "2026-10-02@09:00"
         self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 2, 6, 10, tzinfo=timezone.utc)))
+
+    def test_late_night_slot_runs_after_midnight_on_the_original_weekday(self):
+        self.schedule.update(time="23:55", days=[4])
+        self.assertEqual(due_slot(self.schedule, datetime(2026, 10, 2, 21, 7, tzinfo=timezone.utc)), "2026-10-02@23:55")
+        self.schedule["last_slot"] = "2026-10-02@23:55"
+        self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 2, 21, 37, tzinfo=timezone.utc)))
 
     def test_invalid_weekdays_rejected(self):
         self.schedule["days"] = [True, 8]

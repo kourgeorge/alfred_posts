@@ -29,7 +29,8 @@ export function demoCommand(state, command) {
     }
     case 'save_draft': case 'schedule_draft': case 'cancel_draft':
       Object.assign(draft, { text: command.text ?? draft.text, revision: draft.revision + 1,
-        status: command.action === 'schedule_draft' ? 'scheduled' : 'draft', scheduled_at: command.scheduled_at || null });
+        status: command.action === 'save_draft' ? draft.status : command.action === 'schedule_draft' ? 'scheduled' : 'draft',
+        scheduled_at: command.action === 'save_draft' ? draft.scheduled_at : command.scheduled_at || null });
       result = draft.id; break;
     case 'publish':
       Object.assign(draft, {text: command.text ?? draft.text, status: 'published', published_at: new Date().toISOString(), revision: draft.revision + 1});

@@ -149,7 +149,10 @@ class Studio:
             date = parse_future(command.get("scheduled_at")) if action == "schedule_draft" else None
             def update(state):
                 draft = edit_draft(state, command)
-                draft.update(status="scheduled" if date else "draft", scheduled_at=date)
+                if action == "schedule_draft":
+                    draft.update(status="scheduled", scheduled_at=date)
+                elif action == "cancel_draft" or draft["status"] == "failed":
+                    draft.update(status="draft", scheduled_at=None)
                 return draft["id"]
             return self.store.change(update)
         if action == "delete_draft":

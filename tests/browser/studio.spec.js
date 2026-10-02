@@ -57,6 +57,9 @@ test('all post formats, one-time schedule and cancellation work', async ({page})
   await page.locator('#post-date').fill('2099-10-02T10:30');
   await page.getByRole('dialog').getByRole('button',{name:'Schedule post'}).click();
   await expect(page.locator('.caption-panel .badge')).toHaveText('Scheduled');
+  await page.locator('#caption').fill('Edited while scheduled');
+  await page.getByRole('button',{name:'Save draft',exact:true}).click();
+  await expect(page.locator('.caption-panel .badge')).toHaveText('Scheduled');
   await page.getByRole('button',{name:'Move back to drafts'}).click();
   await expect(page.locator('.caption-panel .badge')).toHaveText('Draft');
 });
