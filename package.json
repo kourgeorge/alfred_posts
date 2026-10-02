@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test:browser": "playwright test"
+    "test:browser": "npm run build && playwright test"
   },
   "dependencies": {
     "libsodium-wrappers": "^0.8.2"
