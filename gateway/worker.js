@@ -78,14 +78,19 @@ async function body(request) {
 
 async function github(env, path, options = {}) {
   let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     response = await fetch(`https://api.github.com/repos/${REPOSITORY}${path}`, {
-      ...options, redirect: 'error', signal: AbortSignal.timeout(20000),
+      ...options, redirect: 'manual', signal: controller.signal,
       headers: { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json',
         Authorization: `Bearer ${env.GITHUB_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Alfred-Studio', ...options.headers },
     });
-  } catch { throw new HttpError(502, 'The automation service is unavailable. Please try again shortly.'); }
+  } catch (error) {
+    console.error('GitHub connection failed', error?.name === 'AbortError' ? 'timeout' : 'network');
+    throw new HttpError(502, 'The automation service is unavailable. Please try again shortly.');
+  } finally { clearTimeout(timeout); }
   if (!response.ok) {
     if (response.status === 404 && path.startsWith('/contents/state.json'))
       return { version: 1, drafts: [], schedules: [], operations: [], posted: { image: [], video: [], question: [] } };
