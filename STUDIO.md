@@ -253,6 +253,7 @@ usage is billed separately. GitHub billing settings control any overage spending
 
 ```bash
 npm install
+npx playwright install webkit
 npm run dev
 npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
@@ -260,9 +261,11 @@ npm run test:browser
 npm run test:gateway
 ```
 
-Browser checks use locally installed Chrome and exercise the demo plus mocked
-gateway API calls. They verify sealed-box credential encryption, auth, exact-caption
-publishing, schedules, and desktop/mobile layouts without making a real post.
+Browser checks use locally installed Chrome plus Playwright WebKit for mobile
+coverage and exercise the demo plus mocked gateway API calls. They verify sealed-box
+credential encryption, auth, exact-caption publishing, schedules, and desktop/mobile
+layouts without making a real post. Touch checks cover 320–844 px screens, portrait
+and landscape layouts, uploads, dialogs, and preserving edits when using the mobile menu.
 Gateway tests cover authentication, session expiry, origin checks, endpoint restrictions,
 and safe upstream failures. Python tests cover timezone rules, source verification, state transitions,
 idempotency, and ambiguous Facebook results. CI runs Python and gateway tests and builds the site.

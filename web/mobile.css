@@ -1,0 +1,144 @@
+/* Keep navigation and dialogs usable on short screens and touch devices. */
+.sidebar { overflow-y: auto; overscroll-behavior: contain; }
+.nav-scrim { display: none; }
+html.mobile-nav-open, html:has(dialog[open]) { overflow: hidden; }
+dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
+.form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid > div { min-width: 0; }
+.video-preview strong, .media-placeholder, .publish-summary strong,
+.schedule-card-main h3, .schedule-card-main p { overflow-wrap: anywhere; }
+
+@media (pointer: coarse), (max-width: 650px) {
+  /* Sixteen-pixel fields avoid automatic input zoom in iOS Safari. */
+  input, select, textarea, .caption-panel #caption, .prompt-panel #prompt-text,
+  .settings-form .credential-textarea, .upload-dropzone input {
+    font-size: 16px;
+  }
+  input:not([type="checkbox"]), select { min-height: 46px; }
+  .btn, .icon-btn, .text-link, .nav-link, summary, .filter-bar button,
+  .source-picker button, .demo-banner button, .page-heading > .btn,
+  .editor-actions .btn, .connection-panel > .btn, .schedule-card-actions > .icon-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .icon-btn, .schedule-card-actions > .icon-btn { width: 44px; height: 44px; }
+  .source-label a { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+  .upload-dropzone input::file-selector-button { min-height: 44px; font-size: 13px; }
+  .day-picker span { min-height: 44px; }
+  /* A full-size hit area around the compact visual switch. */
+  .schedule-card-actions .switch { width: 44px; height: 44px; flex-shrink: 0; background: transparent; }
+  .schedule-card-actions .switch::before {
+    content: ''; position: absolute; width: 34px; height: 20px;
+    left: 5px; top: 12px; border-radius: 20px; background: #dce2d4;
+  }
+  .schedule-card-actions .switch.on::before { background: #8ca575; }
+  .schedule-card-actions .switch span { top: 15px; left: 8px; width: 14px; height: 14px; }
+  .schedule-card-actions .switch.on span { transform: translateX(14px); }
+  .btn:hover:not(:disabled) { transform: none; }
+}
+
+@media (max-width: 650px) {
+  html { scroll-padding-top: calc(78px + env(safe-area-inset-top)); }
+  .sidebar {
+    top: calc(62px + env(safe-area-inset-top));
+    width: min(280px, calc(100% - 56px));
+    padding-bottom: max(19px, env(safe-area-inset-bottom));
+    visibility: hidden;
+  }
+  .nav-open .sidebar { visibility: visible; }
+  .nav-open .nav-scrim {
+    display: block; position: fixed; inset: calc(62px + env(safe-area-inset-top)) 0 0;
+    z-index: 19; background: #17362766;
+  }
+  .sidebar-bottom { padding-top: 20px; }
+  .topbar {
+    height: calc(62px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .breadcrumb { font-size: 12px; }
+  main, .demo-banner, .login-panel, .login-story {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .workspace-footer, .login-panel { padding-bottom: max(30px, env(safe-area-inset-bottom)); }
+  .pending-banner { top: calc(74px + env(safe-area-inset-top)); }
+  .pending-meta { flex-wrap: wrap; }
+  #toast { bottom: max(15px, env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
+
+  .login-form-wrap > p, .page-heading p, .section-title p { font-size: 13px; }
+  .stat-label { font-size: 11px; }
+  .stat-card small { font-size: 10px; }
+  .stat-card { padding: 15px 10px; }
+  .draft-row-main strong, .upcoming-row strong { font-size: 13px; }
+  .draft-row-main > span, .upcoming-row span:not(.type-icon), .cadence-note { font-size: 11px; }
+  .draft-row .badge { font-size: 10px; }
+  .section-title .text-link, .week-panel .section-title .text-link { font-size: 12px; }
+  label, .settings-form label { font-size: 13px; }
+  label span { font-size: 10px; }
+  .field-hint, .settings-form .field-hint, .micro-note { font-size: 12px; }
+  .source-picker button, .filter-bar button, .editor-actions .btn,
+  .activity-post-actions .text-link, .prompt-tools .text-link { font-size: 12px; }
+  .caption-meta, .source-label { font-size: 11px; }
+  .editor-actions { flex-wrap: wrap; gap: 8px; }
+  .publish-actions { flex-wrap: wrap; }
+  .publish-actions > .btn { flex: 1 1 140px; }
+  .upload-selection { flex-wrap: wrap; }
+  .upload-selection > div { flex: 1 1 120px; }
+
+  /* List each day in order so event names remain readable on a phone. */
+  .week-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .week-day {
+    display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 0 12px;
+    min-height: 44px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line);
+    align-items: start;
+  }
+  .week-day:first-child { padding-top: 0; }
+  .week-day-label { flex-direction: column; gap: 6px; margin: 4px 0; font-size: 11px; }
+  .week-day-label > span { font-size: 11px; }
+  .week-event {
+    grid-column: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px 10px; padding: 12px; margin-bottom: 8px;
+  }
+  .week-event > span { grid-column: 1; margin: 0; font-size: 12px; gap: 6px; }
+  .week-event .icon { width: 14px; height: 14px; }
+  .week-event strong { grid-column: 1; font-size: 13px; }
+  .week-event small { grid-column: 2; grid-row: 1 / 3; align-self: center; margin: 0; font-size: 11px; opacity: 1; }
+  .week-panel .section-title p { font-size: 12px; }
+  .schedule-info strong { font-size: 13px; }
+  .schedule-info span:not(.info-tag), .schedule-card-main p { font-size: 12px; }
+  .schedule-card-main h3 { font-size: 14px; }
+  .schedule-card-main .badge { font-size: 10px; }
+  .schedule-card-actions { gap: 4px; }
+  .schedule-card { gap: 10px; }
+  .one-time-row > .muted { white-space: normal; line-height: 1.7; }
+  .activity-caption { font-size: 14px; }
+  .activity-main > span, .activity-help, .activity-error { font-size: 12px; }
+  .settings-title p { font-size: 12px; }
+  .settings-title, .settings-title > div { min-width: 0; }
+  .secret-state { flex-shrink: 0; }
+  .settings-save > span, .settings-values-info p, .security-note p, .plain-note { font-size: 12px; }
+  .settings-save > .btn { width: 100%; font-size: 13px; }
+
+  dialog { padding: 22px 18px; max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .modal-heading { gap: 8px; }
+  .modal-heading p { font-size: 12px; }
+  .modal-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .modal-actions .btn { min-width: 0; white-space: normal; padding: 11px 9px; font-size: 12px; }
+  .modal-actions > .danger { grid-column: 1 / -1; justify-self: start; }
+  .day-picker { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); gap: 7px; }
+  .day-picker span { font-size: 12px; }
+}
+
+@media (max-height: 500px) {
+  .pending-banner, .preview-column { position: static; }
+  .sidebar { padding-top: 15px; }
+  .workspace-card { margin-top: 10px; margin-bottom: 15px; }
+  .sidebar-bottom { padding-top: 15px; }
+  .sidebar-note { display: none; }
+  .topbar, main {
+    padding-left: max(22px, env(safe-area-inset-left));
+    padding-right: max(22px, env(safe-area-inset-right));
+  }
+}

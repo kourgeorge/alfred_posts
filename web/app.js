@@ -1,4 +1,5 @@
 import './style.css';
+import './mobile.css';
 import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
@@ -20,6 +21,7 @@ let secretsLoaded = false;
 let secretsError = '';
 let activityFilter = 'all';
 let mobileNav = false;
+const mobileViewport = window.matchMedia('(max-width: 650px)');
 let polling = false;
 let toastTimer;
 let renderedState = '';
@@ -95,10 +97,10 @@ function shell() {
   const labels = {overview:'Overview',create:'Create a post',schedule:'Schedule',activity:'Activity',settings:'Settings'};
   const nav = [['create','plus'],['overview','grid'],['schedule','calendar'],['activity','activity']];
   root.innerHTML = `<div class="app-layout ${mobileNav ? 'nav-open' : ''}">
-    <aside class="sidebar">${brand()}<div class="workspace-card"><div class="avatar">AK</div><div><strong>Alfred Kor</strong><span><b class="facebook-mini">f</b> Facebook page</span></div>${icon('chevron')}</div>
+    <div class="nav-scrim" data-action="close-menu" aria-hidden="true"></div><aside class="sidebar" id="studio-navigation">${brand()}<div class="workspace-card"><div class="avatar">AK</div><div><strong>Alfred Kor</strong><span><b class="facebook-mini">f</b> Facebook page</span></div>${icon('chevron')}</div>
     <span class="nav-label">WORKSPACE</span><nav aria-label="Main navigation">${nav.map(([id,ico]) => `<a href="#${id}" class="nav-link ${id==='create'?'nav-create':''} ${page===id?'active':''}" ${page===id?'aria-current="page"':''}>${icon(ico)}${labels[id]}${id==='create'?'<span class="nav-shortcut" aria-hidden="true">+</span>':''}</a>`).join('')}</nav>
     <div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<strong>A good rhythm goes a long way.</strong><p>Keep your page active.<br>Keep your time for you.</p></div><a href="#settings" class="nav-link ${page==='settings'?'active':''}">${icon('settings')}Settings</a><button class="nav-link" data-action="logout">${icon('logout')}${demo?'Exit demo':'Lock studio'}</button><div class="connection-status"><i></i>${demo?'Demo workspace':'Studio connected'}${icon('github')}</div></div></aside>
-    <div class="workspace"><header class="topbar"><div class="breadcrumb"><button class="icon-btn mobile-menu" data-action="menu" aria-label="Toggle navigation">${icon('menu')}</button><span>Workspace</span>${icon('chevron')}<strong>${labels[page]}</strong></div><div class="topbar-end"><span class="timezone">${icon('globe')} Asia/Jerusalem</span><span class="session-pill">${icon(demo?'info':'lock')}${demo?'Demo mode':'Private studio'}</span><div class="small-avatar">AK</div></div></header>
+    <div class="workspace"><header class="topbar"><div class="breadcrumb"><button class="icon-btn mobile-menu" data-action="menu" aria-label="Toggle navigation" aria-controls="studio-navigation" aria-expanded="${mobileNav}">${icon('menu')}</button><span>Workspace</span>${icon('chevron')}<strong>${labels[page]}</strong></div><div class="topbar-end"><span class="timezone">${icon('globe')} Asia/Jerusalem</span><span class="session-pill">${icon(demo?'info':'lock')}${demo?'Demo mode':'Private studio'}</span><div class="small-avatar">AK</div></div></header>
     ${demo?'<div class="demo-banner"><span><strong>A look around your future studio.</strong> You’re using sample content.</span><button data-action="logout">Open your studio '+icon('arrow')+'</button></div>':''}
     <main id="main-content">${pendingBanner()}
     ${{overview:overview,create:composer,schedule:schedulePage,activity:activityPage,settings:settingsPage}[page]()}</main>
@@ -253,6 +255,7 @@ function connectionsPage() {
 const displayState = () => JSON.stringify([state, activityItems(state).map(item=>[item.id,item.status])]);
 function render() {
   signedIn ? shell() : login();
+  setMobileNav(mobileNav, false);
   const input=document.querySelector('#media-upload');
   if(input&&selectedUpload) {
     const transfer=new DataTransfer();transfer.items.add(selectedUpload.file);input.files=transfer.files;
@@ -260,16 +263,44 @@ function render() {
   renderedState = signedIn ? displayState() : '';
 }
 function lockStudio() {
+  setMobileNav(false, false);
   uploading?.controller.abort();uploading=null;
   for(const url of uploadedMedia.values()) URL.revokeObjectURL(url);
   uploadedMedia.clear();clearUpload();uploadDescription='';uploadError='';sourceMode='library';
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
   editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
-  promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();
+  promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();window.scrollTo(0,0);
 }
 window.addEventListener('studio-locked', lockStudio);
-function navigate(page) { mobileNav=false; if(location.hash===`#${page}`) render();else location.hash=page; }
+function navigate(page) { setMobileNav(false, false); if(location.hash===`#${page}`) {render();window.scrollTo(0,0);}else location.hash=page; }
+
+function setMobileNav(open, moveFocus = true) {
+  mobileNav = Boolean(open && mobileViewport.matches && signedIn);
+  document.documentElement.classList.toggle('mobile-nav-open', mobileNav);
+  document.querySelector('.app-layout')?.classList.toggle('nav-open', mobileNav);
+  const sidebar = document.querySelector('.sidebar');
+  const toggle = document.querySelector('.mobile-menu');
+  toggle?.setAttribute('aria-expanded', String(mobileNav));
+  if (sidebar) sidebar.inert = mobileViewport.matches && !mobileNav;
+  document.querySelectorAll('.workspace > main, .demo-banner, .workspace-footer').forEach(el => el.inert = mobileNav);
+  if (moveFocus) {
+    if (mobileNav) (sidebar?.querySelector('.nav-link.active') || sidebar?.querySelector('.nav-link'))?.focus();
+    else if (mobileViewport.matches) toggle?.focus({preventScroll:true});
+  }
+}
+
+mobileViewport.addEventListener('change', () => setMobileNav(false, false));
+document.addEventListener('keydown', event => {
+  if (!mobileNav) return;
+  if (event.key === 'Escape') {event.preventDefault();setMobileNav(false);}
+  if (event.key === 'Tab') {
+    const controls = [document.querySelector('.mobile-menu'), ...document.querySelectorAll('.sidebar a[href], .sidebar button:not(:disabled)')];
+    const index = controls.indexOf(document.activeElement);
+    event.preventDefault();
+    controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
+  }
+});
 
 async function sync() {
   if (demo || !signedIn || polling) return;
@@ -486,11 +517,11 @@ for(const name of ['dragover','drop']) document.addEventListener(name,event=> {
 
 document.addEventListener('click',async event=> {
   const navLink=event.target.closest('.nav-link[href]');
-  if(navLink&&mobileNav) {mobileNav=false;if(navLink.getAttribute('href')===location.hash)render();}
+  if(navLink&&mobileNav) setMobileNav(false);
   const button=event.target.closest('[data-action]');
   if(!button||button.disabled) return;
   const action=button.dataset.action;
-  if(uploading&&!['logout','menu','cancel-upload'].includes(action))return;
+  if(uploading&&!['logout','menu','close-menu','cancel-upload'].includes(action))return;
   if(action==='cancel-upload') {uploading?.controller.abort();uploading=null;uploadError='Upload cancelled. You can try again.';render();}
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
   if(action==='logout') lockStudio();
@@ -503,7 +534,8 @@ document.addEventListener('click',async event=> {
     promptEdits.set(promptType,{text:defaultPrompts[promptType],revision:promptSnapshot.revision});render();
   }
   if(action==='discard-prompt') {promptEdits.delete(promptType);render();}
-  if(action==='menu') {mobileNav=!mobileNav;render();}
+  if(action==='menu') setMobileNav(!mobileNav);
+  if(action==='close-menu') setMobileNav(false);
   if(action==='source-mode') {sourceMode=button.dataset.mode;uploadError='';render();}
   if(action==='remove-upload') {clearUpload();uploadError='';render();}
   if(action==='new') {sourceMode='library';selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
@@ -549,7 +581,7 @@ document.addEventListener('click',async event=> {
   }
 });
 
-window.addEventListener('hashchange',()=> {mobileNav=false;render();if(route()==='settings'&&signedIn&&!demo&&!secretsLoaded)loadSecrets();});
+window.addEventListener('hashchange',()=> {setMobileNav(false,false);render();window.scrollTo(0,0);if(route()==='settings'&&signedIn&&!demo&&!secretsLoaded)loadSecrets();});
 async function loadSecrets() {
   try {secretNames=await github.secretsStatus();secretsLoaded=true;}catch(error){secretsError=error.message;}
   if(signedIn&&route()==='settings'&&settingsView==='connections') {
