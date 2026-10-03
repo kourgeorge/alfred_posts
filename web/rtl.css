@@ -56,6 +56,7 @@ html[lang="ar"] { font-family: Tahoma, Arial, sans-serif; }
 [dir="rtl"] .brand, .facebook-mini, .service-symbol, .repo-name { direction: ltr; unicode-bidi: isolate; }
 #settings-form input, #google-key, #studio-password, #schedule-zone, input[type="time"], input[type="datetime-local"] { direction: ltr; text-align: left; }
 #settings-form input::placeholder, #google-key::placeholder, #studio-password::placeholder { text-align: match-parent; }
+[dir="rtl"] #settings-form input:placeholder-shown, [dir="rtl"] #google-key:placeholder-shown, [dir="rtl"] #studio-password:placeholder-shown { direction: rtl; text-align: right; }
 .source-label > span, .upload-selection strong, .publish-summary strong { unicode-bidi: plaintext; }
 @media (max-width: 650px) {
   .topbar .session-pill, .topbar .small-avatar { display: none; }
