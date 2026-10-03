@@ -11,3 +11,6 @@ playwright-report/
 test-results/
 cron.log
 gateway-dist.tar.gz
+ad_pilot_output/
+ads_output/
+drive_inspect/

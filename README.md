@@ -76,3 +76,20 @@ questions via the Forms API, and keep only questions that have an attached image
 different random form (up to 10 tries) before giving up. The chosen question's image is
 posted straight from its Google-hosted URL — it's never downloaded locally, since that's
 how the n8n workflow did it too.
+
+## Local ad-image utilities
+
+Install the optional dependencies with `pip install -r requirements-ads.txt`.
+
+- `python ads_image_pilot.py` generates sample ads through the OpenAI Images API
+  using the existing `.env` configuration and saves them to `ad_pilot_output/`.
+  Review the generated Hebrew text before using an image.
+- `python create_ad.py` composes a teacher ad from
+  `drive_inspect/teacher_candidate_2.jpg` and `drive_inspect/logo_candidate.jpg`.
+- `python create_ad_product.py` composes a course ad from
+  `drive_inspect/course_success_3.jpg` and the same logo.
+
+The two composition scripts read local assets and save PNGs to `ads_output/`.
+They default to the macOS Hebrew font at `/System/Library/Fonts/SFHebrew.ttf`;
+adjust `HEBREW_FONT_BOLD` for another system. Local assets and generated images
+are ignored by Git. These utilities do not publish posts or change posting history.
