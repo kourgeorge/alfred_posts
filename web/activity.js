@@ -2,6 +2,13 @@ import { inZone, nextOccurrence, scheduleRun } from './utils.js';
 
 export function activityItems(state, now = new Date()) {
   const records = new Map();
+  const postItem = draft => {
+    const status = draft.status === 'scheduled' && now - new Date(draft.scheduled_at) > 30 * 60000
+      ? 'overdue' : draft.status;
+    return {kind:'post',id:draft.id,draft,status,
+      date:draft.published_at || draft.scheduled_at || draft.created_at,
+      attention:!['published','scheduled'].includes(status)};
+  };
   const drafts = new Map(state.drafts.map(d => [d.id, d]));
   const recovered = new Set();
   const missed = new Map((state.missed_runs || []).map(r => [`${r.schedule_id}:${r.slot}`, {...r}]));
@@ -18,8 +25,7 @@ export function activityItems(state, now = new Date()) {
     if (draft) {
       recovered.add(`${run.schedule_id}:${run.slot}`);
       if (draft.status === 'deleted') continue;
-      records.set(`post:${draft.id}`, {kind:'post',id:draft.id,draft,status:draft.status,
-        date:draft.published_at || draft.scheduled_at || draft.created_at,attention:draft.status !== 'published'});
+      records.set(`post:${draft.id}`, postItem(draft));
     } else {
       records.set(`schedule:${run.schedule_id}:${run.slot}`, {kind:'task',id:`missed:${run.schedule_id}:${run.slot}`,
         missedId:run.id,scheduleId:run.schedule_id,slot:run.slot,name:run.name,type:run.type,mode:run.mode,
@@ -28,8 +34,7 @@ export function activityItems(state, now = new Date()) {
   }
   for (const draft of state.drafts) {
     if (['draft','deleted'].includes(draft.status)) continue;
-    records.set(`post:${draft.id}`, {kind:'post',id:draft.id,draft,status:draft.status,
-      date:draft.published_at || draft.scheduled_at || draft.created_at,attention:draft.status !== 'published'});
+    records.set(`post:${draft.id}`, postItem(draft));
   }
   for (const schedule of state.schedules.filter(s => s.enabled)) {
     const run = scheduleRun(schedule,state.drafts,now);
@@ -38,7 +43,7 @@ export function activityItems(state, now = new Date()) {
     const key = pending ? `schedule:${schedule.id}:${run.slot}` : `next:${schedule.id}`;
     if (date && !records.has(key)) records.set(key, {kind:'task',id:key,scheduleId:schedule.id,
       slot:pending?run.slot:null,name:schedule.name,type:schedule.type,mode:schedule.mode,
-      status:pending?run.status:'scheduled',date,attention:true});
+      status:pending?run.status:'scheduled',date,attention:Boolean(pending&&['overdue','missed'].includes(run.status))});
   }
   return [...records.values()].sort((a,b) => new Date(b.date) - new Date(a.date));
 }

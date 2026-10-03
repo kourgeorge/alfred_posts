@@ -150,8 +150,10 @@ recurring slots are not forced to run. The button stays disabled while the reque
 is pending, then the dashboard shows completion and updated results. Posting
 errors remain visible in Schedule and Activity. Demo mode only simulates the check.
 
-**Activity → Needs attention** includes upcoming scheduled posts, waiting/overdue
-tasks, missed runs, failures, and recovered drafts awaiting review. Select
+**Activity → Needs attention** includes overdue tasks, missed runs, failures, and
+recovered drafts awaiting review. Upcoming posts and tasks waiting within the normal
+30-minute check interval appear under **Scheduled**. One-time posts also become
+overdue after that interval. Rescheduling a recovered draft moves it back to Scheduled. Select
 **Prepare missed draft** to recover a missed occurrence for review; this never
 publishes automatically, even if its original schedule used automatic publication.
 Repeated recovery opens the same draft. Publish it explicitly after reviewing its

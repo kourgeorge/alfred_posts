@@ -214,11 +214,15 @@ test('demo manual check preserves saved captions and skips future posts',()=> {
   expect(state.drafts[2].status).toBe('draft');
 });
 
-test('Activity includes every Studio post and scheduled or missed work needing attention',async({page})=> {
+test('Activity keeps future schedules separate from missed and overdue work needing attention',async({page})=> {
   const remote=demoState();
+  await page.clock.install({time:new Date('2026-10-03T10:19:00Z')});
+  remote.schedules=[{id:'future',name:'Morning driving tips',type:'image',mode:'draft',enabled:true,days:[0],time:'09:00',timezone:'Asia/Jerusalem',starts_at:'2026-10-03T07:00:00Z'},
+    {id:'overdue',name:'Overdue recurring photo',type:'image',mode:'publish',enabled:true,days:[5],time:'10:10',timezone:'Asia/Jerusalem',starts_at:'2026-10-03T07:00:00Z'}];
   const caption='Published caption שלום <script>not executable</script>';
   Object.assign(remote.drafts[0],{status:'published',text:caption,preview:'data:image/jpeg;base64,/9j/2Q==',published_at:'2026-10-03T09:00:00Z',facebook_url:'https://www.facebook.com/page_post'});
   Object.assign(remote.drafts[1],{status:'scheduled',scheduled_at:'2099-01-01T10:00:00Z'});
+  Object.assign(remote.drafts[2],{status:'scheduled',scheduled_at:'2026-10-03T07:00:00Z'});
   remote.missed_runs=[{id:'missed-run-1',schedule_id:'deleted-schedule',slot:'2026-10-02@10:10',name:'A missed photo',type:'image',mode:'publish',scheduled_at:'2026-10-02T07:10:00Z',status:'missed'}];
   let sent;
   await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
@@ -241,10 +245,15 @@ test('Activity includes every Studio post and scheduled or missed work needing a
   await expect(post.locator('img')).toHaveCount(1);
   await expect(post.locator('script')).toHaveCount(0);
   await expect(post.getByRole('link',{name:'View on Facebook'})).toBeVisible();
-  await page.getByRole('button',{name:/^Needs attention/}).click();
+  await page.getByRole('button',{name:/^Scheduled/}).click();
   await expect(page.locator('[data-post-id="demo-video"]')).toBeVisible();
-  await expect(page.getByText('A missed photo',{exact:true})).toBeVisible();
   await expect(page.getByText('Morning driving tips',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^Needs attention/}).click();
+  await expect(page.locator('[data-post-id="demo-video"]')).toHaveCount(0);
+  await expect(page.getByText('Morning driving tips',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('A missed photo',{exact:true})).toBeVisible();
+  await expect(page.getByText('Overdue recurring photo',{exact:true})).toBeVisible();
+  await expect(page.locator('[data-post-id="demo-question"] .badge')).toHaveText('Overdue');
   await expect(page.locator('[data-post-id="demo-photo"]')).toHaveCount(0);
   await page.getByRole('button',{name:'Prepare missed draft',exact:true}).click();
   await expect(page.locator('#caption')).toBeVisible();
@@ -266,6 +275,10 @@ test('missed tasks remain visible after recovery without duplicate rows',()=> {
   state.schedules=[];state.operations=[];
   expect(filterActivity(activityItems(state,now),'attention')).toHaveLength(1);
   const recovered = state.drafts.find(d=>d.missed_run_id==='missed');
+  Object.assign(recovered,{status:'scheduled',scheduled_at:'2026-10-04T10:00:00Z'});
+  expect(filterActivity(activityItems(state,now),'attention')).toHaveLength(0);
+  expect(filterActivity(activityItems(state,new Date('2026-10-04T10:20:00Z')),'attention')).toHaveLength(0);
+  expect(filterActivity(activityItems(state,new Date('2026-10-04T10:31:00Z')),'attention')[0].status).toBe('overdue');
   recovered.status='deleted';
   expect(filterActivity(activityItems(state,now),'attention')).toHaveLength(0);
 });
