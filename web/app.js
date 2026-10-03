@@ -1,7 +1,9 @@
-import { t, locale, setLocale, languages, applyLocale, number, sourceMessage } from './i18n.js';
+import { t, locale, setLocale, applyLocale, number, sourceMessage } from './i18n.js';
 import './style.css';
 import './mobile.css';
 import './rtl.css';
+import './language-picker.css';
+import { languagePicker, bindLanguagePicker } from './language-picker.js';
 import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
@@ -49,10 +51,6 @@ const badge = (status) => `<span class="badge ${e(status)}"><i></i>${e({draft:t(
 const typeIcon = (type) => `<span class="type-icon ${e(type)}">${icon(type)}</span>`;
 const brand = () => `<div class="brand"><span class="brand-symbol">${icon('leaf')}</span><span>alfred<span class="brand-dot">.</span></span></div>`;
 
-function languagePicker() {
-  return `<label class="language-picker"><span class="sr-only">${e(t('Interface language'))}</span><select id="ui-language" data-language aria-label="${e(t('Interface language'))}">${Object.entries(languages).map(([code,name])=>`<option value="${code}" lang="${code}" ${code===locale()?'selected':''}>${name}</option>`).join('')}</select></label>`;
-}
-
 function toast(message, error = false) {
   const el = document.querySelector('#toast');
   el.textContent = t(sourceMessage(message));
@@ -60,14 +58,16 @@ function toast(message, error = false) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 6500);
 }
 
-function login(error = '') {
+function login(error = '', focusPassword = true) {
   root.innerHTML = `<div class="login-layout">
     <section class="login-story">${brand()}<div class="login-copy"><span class="eyebrow">${e(t("YOUR OWN LITTLE PUBLISHING STUDIO"))}</span><h1>${e(t("Good content."))}<br>${e(t("A little more"))}<br><em>${e(t("consistently."))}</em></h1><p>${e(t("Turn your ideas into a steady rhythm of posts."))}<br>${e(t("Plan, preview, and publish. All in one place."))}</p><div class="login-types"><span>${icon('image')}${e(t("Photos"))}</span><span>${icon('video')}${e(t("Videos"))}</span><span>${icon('question')}${e(t("Questions"))}</span></div></div><div class="login-footer">${e(t("Made for Alfred Kor"))} <span>${e(t("Powered by GitHub"))} ${icon('github')}</span></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div></section>
     <section class="login-panel"><div class="login-form-wrap"><div class="login-language">${languagePicker()}</div><span class="lock-tile">${icon('lock')}</span><span class="eyebrow">ALFRED STUDIO</span><h2>${e(t("A space of your own."))}</h2><p>${e(t("Enter your password to open your studio."))}</p>
-      <form id="login-form"><label for="studio-password">${e(t("Password"))}</label><input id="studio-password" name="password" type="password" placeholder="${e(t("Your studio password"))}" required autocomplete="current-password" spellcheck="false" autofocus />
+      <form id="login-form"><label for="studio-password">${e(t("Password"))}</label><input id="studio-password" name="password" type="password" placeholder="${e(t("Your studio password"))}" required autocomplete="current-password" spellcheck="false" />
       <div id="login-error" class="form-error" role="alert">${e(t(sourceMessage(error)))}</div><button class="btn primary login-submit" type="submit">${e(t("Open studio"))} ${icon('arrow')}</button></form>
       <div class="login-note">${icon('lock')}<span>${e(t("One password. Your own private workspace."))}<br>${e(t("Close or refresh this tab to lock the studio."))}</span></div><div class="login-divider"><span>${e(t("just looking around?"))}</span></div><button class="btn demo-btn" data-action="demo">${e(t("Explore the demo"))} ${icon('arrow')}</button><small class="muted demo-caption">${e(t("Sample content. No real posts or API calls."))}</small>
     </div></section></div>`;
+  // Focus immediately so deferred native autofocus cannot interrupt the language menu.
+  if (focusPassword) document.querySelector('#studio-password').focus({preventScroll:true});
 }
 
 function pendingDetails() {
@@ -277,7 +277,7 @@ function changeLanguage(value) {
   const details = [...root.querySelectorAll('details')].map(el=>el.open);
   const scroll = window.scrollY;
   setLocale(value);
-  render();
+  render({focusLogin: false});
   for (const saved of fields) {
     const input = document.getElementById(saved.id);
     if (!input) continue;
@@ -299,9 +299,9 @@ function changeLanguage(value) {
   window.scrollTo(0,scroll);
 }
 
-function render() {
+function render({focusLogin = true} = {}) {
   applyLocale();
-  signedIn ? shell() : login();
+  signedIn ? shell() : login('', focusLogin);
   setMobileNav(mobileNav, false);
   const input=document.querySelector('#media-upload');
   if(input&&selectedUpload) {
@@ -556,7 +556,6 @@ document.addEventListener('input',event=> {
   }
 });
 document.addEventListener('change',event=> {
-  if(event.target.hasAttribute('data-language')) {changeLanguage(event.target.value);return;}
   if(event.target.id==='media-upload')selectUpload(event.target.files[0]);
   if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;render();}
   if(event.target.id==='schedule-mode') document.querySelector('#mode-hint').textContent=event.target.value==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.");
@@ -644,6 +643,7 @@ async function loadSecrets() {
     document.querySelector('#settings-error').textContent=t(sourceMessage(secretsError));
   }
 }
+bindLanguagePicker(changeLanguage, () => setMobileNav(false, false));
 setInterval(sync,8000);
 setInterval(updatePending,1000);
 try {config=await fetch('./config.json',{cache:'no-store'}).then(r=>r.json());}catch{/* login reports a missing connection configuration */}

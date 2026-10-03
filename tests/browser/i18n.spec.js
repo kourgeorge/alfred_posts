@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { translations } from '../../web/translations.js';
 import { demoState } from '../../web/demo.js';
+import { languages } from '../../web/i18n.js';
 
 test.use({ hasTouch: true, isMobile: true, locale: 'en-US' });
 
 const label = (language, key) => translations[key][language === 'he' ? 0 : 1];
+async function chooseLanguage(page, language) {
+  await page.locator('[data-language]').tap();
+  await page.getByRole('menuitemradio', { name: languages[language], exact: true }).tap();
+}
 async function navigate(page, route) {
   if (await page.locator('.mobile-menu').isVisible()) await page.locator('.mobile-menu').tap();
   await page.locator(`.sidebar a[href="#${route}"]`).tap();
@@ -24,7 +29,7 @@ for (const language of ['he', 'ar']) for (const width of [320, 390, 844, 1440]) 
     page.on('pageerror', error => errors.push(error.message));
     await page.goto('/');
     await page.locator('#studio-password').fill('unsaved-password');
-    await page.locator('[data-language]').selectOption(language);
+    await chooseLanguage(page, language);
     await expect(page.locator('html')).toHaveAttribute('lang', language);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.locator('#studio-password')).toHaveValue('unsaved-password');
@@ -41,12 +46,12 @@ for (const language of ['he', 'ar']) for (const width of [320, 390, 844, 1440]) 
     const caption = 'Draft — טקסט عربي <b>stays literal</b>';
     const source = await page.locator('.source-label > span').textContent();
     await page.locator('#caption').fill(caption);
-    await page.locator('[data-language]').selectOption('en');
+    await chooseLanguage(page, 'en');
     await expect(page.locator('#caption')).toHaveValue(caption);
     await expect(page.locator('#preview-caption')).toHaveText(caption);
     await expect(page.locator('#preview-caption b')).toHaveCount(0);
     await expect(page.locator('.source-label > span')).toHaveText(source);
-    await page.locator('[data-language]').selectOption(language);
+    await chooseLanguage(page, language);
     await page.getByRole('button', { name: label(language, 'Save draft'), exact: true }).tap();
     await expect(page.locator('#edit-state')).toHaveText(label(language, 'Saved draft'));
     await page.getByRole('button', { name: label(language, 'Publish now'), exact: true }).tap();
@@ -82,24 +87,24 @@ for (const language of ['he', 'ar']) for (const width of [320, 390, 844, 1440]) 
     await navigate(page, 'settings');
     await page.locator('#fb-page').fill('777777');
     await page.locator('#openai-key').fill('private-unsaved-replacement');
-    await page.locator('[data-language]').selectOption('en');
+    await chooseLanguage(page, 'en');
     await expect(page.locator('#fb-page')).toHaveValue('777777');
     await expect(page.locator('#openai-key')).toHaveValue('private-unsaved-replacement');
-    await page.locator('[data-language]').selectOption(language);
+    await chooseLanguage(page, language);
     await fits(page, width);
     await page.getByRole('button', { name: label(language, 'AI prompts'), exact: true }).tap();
     const prompt = 'Write in Hebrew. اكتب بالعربية. <script>plain text</script>';
     await page.locator('#prompt-text').fill(prompt);
-    await page.locator('[data-language]').selectOption('en');
+    await chooseLanguage(page, 'en');
     await expect(page.locator('#prompt-text')).toHaveValue(prompt);
-    await page.locator('[data-language]').selectOption(language);
+    await chooseLanguage(page, language);
     await page.getByRole('button', { name: label(language, 'Save prompt'), exact: true }).tap();
     await expect(page.locator('#prompt-state')).toHaveText(label(language, 'Saved custom prompt'));
     await fits(page, width);
     await page.screenshot({ path: testInfo.outputPath('translated-interface.png'), fullPage: true });
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', language);
-    await expect(page.locator('[data-language]')).toHaveValue(language);
+    await expect(page.locator('[data-language]')).toHaveAttribute('value', language);
     await expect(page.locator('#studio-password')).toHaveValue('');
     expect(await page.evaluate(() => ({ keys: Object.keys(localStorage), session: sessionStorage.length })))
       .toEqual({ keys: ['alfred-ui-language'], session: 0 });
@@ -111,14 +116,14 @@ test('language switching preserves uploads and works without browser storage', a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage unavailable'); } }));
   await page.goto('/');
-  await page.locator('[data-language]').selectOption('ar');
+  await chooseLanguage(page, 'ar');
   await page.locator('[data-action="demo"]').tap();
   await expect(page.locator('.app-layout')).toBeVisible();
   await navigate(page, 'create');
   await page.locator('[data-mode="upload"]').tap();
   await page.locator('#media-upload').setInputFiles('tests/browser/fixtures/upload-photo.png');
   await page.locator('#upload-description').fill('وصف الصورة — תיאור');
-  await page.locator('[data-language]').selectOption('he');
+  await chooseLanguage(page, 'he');
   await expect(page.locator('#upload-description')).toHaveValue('وصف الصورة — תיאור');
   expect(await page.locator('#media-upload').evaluate(el => el.files[0].name)).toBe('upload-photo.png');
   await page.getByRole('button', { name: 'יצירת טקסט', exact: true }).tap();
@@ -136,7 +141,7 @@ test('authentication errors and pending work follow the selected language', asyn
     await route.fulfill({ json: path === '/api/login' ? { token: 'test-session', repository: 'kourgeorge/alfred_posts_automation' } : remote });
   });
   await page.goto('/');
-  await page.locator('[data-language]').selectOption('he');
+  await chooseLanguage(page, 'he');
   await page.locator('#studio-password').fill('wrong-password');
   await page.getByRole('button', { name: 'כניסה לסטודיו', exact: true }).tap();
   await expect(page.locator('#login-error')).toHaveText('הסיסמה שגויה. יש לנסות שוב.');
@@ -147,21 +152,79 @@ test('authentication errors and pending work follow the selected language', asyn
   await navigate(page, 'create');
   await page.getByRole('button', { name: 'יצירת טיוטת תמונה', exact: true }).tap();
   await expect(page.locator('.pending-copy strong')).toHaveText('הטיוטה נוצרת…');
-  await page.locator('[data-language]').selectOption('ar');
+  await chooseLanguage(page, 'ar');
   await expect(page.locator('.pending-copy strong')).toHaveText('جارٍ إنشاء المسودة…');
   await expect(page.locator('.pending-stage')).toHaveText('بانتظار GitHub');
   await expect(page.locator('.pending-elapsed')).toContainText('المدة');
+});
+
+test('language menu supports keyboard selection and dismissal without losing edits', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.locator('#studio-password').fill('unsaved-password');
+  const trigger = page.getByRole('button', { name: 'Interface language: English', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('End');
+  await expect(page.getByRole('menuitemradio', { name: 'العربية', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'he');
+  await expect(page.locator('#studio-password')).toHaveValue('unsaved-password');
+  await expect(page.locator('[data-language]')).toBeFocused();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-language]')).toBeFocused();
+  await expect(page.locator('[data-language]')).toHaveAttribute('aria-expanded', 'false');
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByRole('menuitemradio', { name: 'العربية', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('menuitemradio', { name: 'English', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('#studio-password')).toBeFocused();
+  await page.locator('[data-language]').click();
+  await page.locator('.login-story .brand').click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('#studio-password')).toHaveValue('unsaved-password');
+});
+
+test('mobile language menu fits both directions and works alongside navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('/');
+  await page.locator('[data-action="demo"]').tap();
+  for (const language of ['he', 'ar', 'en']) {
+    await page.locator('.mobile-menu').tap();
+    await expect(page.locator('.mobile-menu')).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('[data-language]').tap();
+    await expect(page.locator('.mobile-menu')).toHaveAttribute('aria-expanded', 'false');
+    const bounds = await page.getByRole('menu').boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(740);
+    const option = page.getByRole('menuitemradio', { name: languages[language], exact: true });
+    expect((await option.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await option.tap();
+    await expect(page.locator('html')).toHaveAttribute('lang', language);
+    await expect(page.locator('[data-language]')).toHaveAttribute('aria-expanded', 'false');
+    await fits(page, 320);
+  }
 });
 
 test.describe('browser language preference', () => {
   test.use({ locale: 'ar-EG' });
   test('uses Arabic initially and remembers an explicit English choice', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('[data-language]')).toHaveValue('ar');
+    await expect(page.locator('[data-language]')).toHaveAttribute('value', 'ar');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await page.locator('[data-language]').selectOption('en');
+    await chooseLanguage(page, 'en');
     await page.reload();
-    await expect(page.locator('[data-language]')).toHaveValue('en');
+    await expect(page.locator('[data-language]')).toHaveAttribute('value', 'en');
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     await expect(page.getByRole('button', { name: 'Open studio', exact: true })).toBeVisible();
   });
