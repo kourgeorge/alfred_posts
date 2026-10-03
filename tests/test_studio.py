@@ -10,6 +10,7 @@ from studio.media import MediaService, digest
 from studio.scheduler import due_slot, parse_future, validate_schedule
 from studio.service import Studio
 from studio.store import MemoryStore
+from studio.missed import capture_missed
 
 
 class FakeMedia:
@@ -102,6 +103,7 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(sent["source"], d["source"])
         self.assertEqual(data, b"original")
         self.assertEqual(self.store.state["posted"]["image"], ["image-source"])
+        self.assertEqual(self.store.state["drafts"][0]["preview"], d["preview"])
 
     def test_replayed_request_does_not_publish_twice(self):
         d = self.generate()
@@ -238,7 +240,7 @@ class StudioTest(unittest.TestCase):
         issues = [op for op in self.store.state["operations"] if op["action"] == "missed_schedule"]
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0]["slot"], "2026-10-03@10:10")
-        self.assertIn("24 hours", issues[0]["error"])
+        self.assertIn("Needs attention", issues[0]["error"])
 
     def test_long_outage_only_publishes_latest_daily_slot(self):
         self.saturday_schedule(days=list(range(7)))
@@ -311,6 +313,92 @@ class StudioTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.app.command({"id":"manual-failed-001", "action":"run_due"})
         self.assertEqual(self.store.state["operations"][0]["status"], "failed")
+
+    def test_missed_runs_survive_operation_history_and_schedule_removal(self):
+        self.saturday_schedule()
+        self.app.tick(datetime(2026, 10, 4, 7, 11, tzinfo=timezone.utc))
+        missed = copy.deepcopy(self.store.state["missed_runs"][0])
+        self.store.state["operations"] = []
+        self.store.state["schedules"] = []
+        self.app.command({"id":"recover-missed-001", "action":"recover_missed", "missed_id":missed["id"]})
+        self.app.command({"id":"recover-missed-002", "action":"recover_missed", "missed_id":missed["id"]})
+        self.assertEqual(len(self.store.state["drafts"]), 1)
+        self.assertEqual(self.media.posts, [])
+        self.assertEqual(self.store.state["drafts"][0]["status"], "draft")
+        self.assertEqual(self.store.state["missed_runs"][0]["draft_id"], self.store.state["drafts"][0]["id"])
+        self.publish(self.store.state["drafts"][0], "publish-recovery-001")
+        self.assertEqual(self.store.state["missed_runs"][0]["status"], "published")
+
+    def test_every_expired_slot_is_kept_after_an_outage_longer_than_a_week(self):
+        self.saturday_schedule(days=list(range(7)))
+        self.app.tick(datetime(2026, 10, 20, 7, 30, tzinfo=timezone.utc))
+        self.assertEqual(len(self.store.state["missed_runs"]), 17)
+        self.assertEqual(len({r["slot"] for r in self.store.state["missed_runs"]}), 17)
+        self.assertEqual(len(self.media.posts), 1)
+        self.app.tick(datetime(2026, 10, 20, 8, 0, tzinfo=timezone.utc))
+        self.assertEqual(len(self.store.state["missed_runs"]), 17)
+
+    def test_legacy_missed_receipt_is_imported_without_publishing(self):
+        self.saturday_schedule()
+        self.store.state["schedules"][0]["last_missed_slot"] = "2026-10-03@10:10"
+        self.store.change(lambda s: capture_missed(s, datetime(2026, 10, 4, 8, tzinfo=timezone.utc)))
+        self.assertEqual(len(self.store.state["missed_runs"]), 1)
+        self.assertEqual(self.media.posts, [])
+
+    def test_previous_daily_slot_is_saved_at_exactly_24_hours(self):
+        self.saturday_schedule(days=list(range(7)))
+        self.app.tick(datetime(2026, 10, 4, 7, 10, tzinfo=timezone.utc))
+        self.assertEqual([r["slot"] for r in self.store.state["missed_runs"]], ["2026-10-03@10:10"])
+        self.assertEqual(len(self.media.posts), 1)
+
+    def test_failed_generation_survives_next_run_and_history_rotation(self):
+        self.saturday_schedule(days=list(range(7)))
+        with patch.object(self.media, "prepare", side_effect=ValueError("Source unavailable")):
+            self.app.tick(datetime(2026, 10, 3, 8, tzinfo=timezone.utc))
+        missed = copy.deepcopy(self.store.state["missed_runs"][0])
+        self.assertEqual(missed["status"], "failed")
+        self.app.tick(datetime(2026, 10, 4, 8, tzinfo=timezone.utc))
+        self.store.state["operations"] = []
+        self.store.state["schedules"] = []
+        self.app.command({"id":"recover-failed-001", "action":"recover_missed", "missed_id":missed["id"]})
+        self.assertEqual(len(self.media.posts), 1)
+        self.assertEqual(self.store.state["drafts"][0]["status"], "draft")
+
+    def test_schedule_changes_preserve_unclaimed_run_within_catch_up_window(self):
+        self.saturday_schedule()
+        with patch("studio.missed.datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 3, 8, tzinfo=timezone.utc)
+            clock.fromisoformat.side_effect = datetime.fromisoformat
+            self.app.command({"id":"pause-pending-001", "action":"toggle_schedule", "schedule_id":"saturday-1010", "enabled":False})
+        self.assertEqual([r["slot"] for r in self.store.state["missed_runs"]], ["2026-10-03@10:10"])
+        self.assertEqual(self.media.posts, [])
+
+    def test_generation_failure_is_kept_if_schedule_is_deleted_during_generation(self):
+        self.saturday_schedule()
+        def fail(*args, **kwargs):
+            self.store.state["schedules"] = []
+            raise ValueError("Source unavailable")
+        with patch.object(self.media, "prepare", side_effect=fail):
+            self.app.tick(datetime(2026, 10, 3, 8, tzinfo=timezone.utc))
+        self.assertEqual(self.store.state["missed_runs"][0]["status"], "failed")
+        self.assertEqual(self.media.posts, [])
+
+    def test_unconfirmed_recovery_cannot_publish_again(self):
+        self.saturday_schedule()
+        self.app.tick(datetime(2026, 10, 4, 7, 11, tzinfo=timezone.utc))
+        key = self.store.state["missed_runs"][0]["id"]
+        self.app.command({"id":"recover-once-001", "action":"recover_missed", "missed_id":key})
+        self.store.state["drafts"][0]["status"] = "uncertain"
+        with self.assertRaisesRegex(RuntimeError, "existing post"):
+            self.app.command({"id":"recover-once-002", "action":"recover_missed", "missed_id":key})
+        self.assertEqual(self.media.posts, [])
+
+    def test_recovery_cannot_force_a_future_slot(self):
+        self.saturday_schedule()
+        with self.assertRaisesRegex(RuntimeError, "not available"):
+            self.app.command({"id":"recover-future-001", "action":"recover_missed", "schedule_id":"saturday-1010", "slot":"2099-10-03@10:10"})
+        self.assertEqual(self.media.posts, [])
+        self.assertEqual(self.store.state["drafts"], [])
 
 
 class ScheduleTest(unittest.TestCase):

@@ -61,6 +61,9 @@ test('only fixed repository endpoints and approved service secrets are available
     const runDue = {id:'run-due-123',action:'run_due'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:runDue}), env)).status, 204);
     assert.deepEqual(JSON.parse(calls.at(-1).options.body), {ref:'main',inputs:{command:JSON.stringify(runDue)}});
+    const recover = {id:'recover-missed-123',action:'recover_missed',missed_id:'missed-run-123'};
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:recover}), env)).status, 204);
+    assert.deepEqual(JSON.parse(calls.at(-1).options.body), {ref:'main',inputs:{command:JSON.stringify(recover)}});
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);

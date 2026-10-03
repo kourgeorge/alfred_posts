@@ -1,4 +1,4 @@
-import { dueTasks } from './utils.js';
+import { dueTasks, inZone } from './utils.js';
 
 export function demoState() {
   const ago = days => new Date(Date.now() - days * 86400000).toISOString();
@@ -12,7 +12,7 @@ export function demoState() {
     source: { key: 'demo-question', name: 'Before you set off', url: null },
     text: 'שאלת חימום לדרך 🚦\n\nמתי כדאי לכוון את המראות?\n1. לפני תחילת הנסיעה\n2. בזמן הנסיעה\n3. רק כשהראות מוגבלת\n\nכתבו את התשובה שלכם בתגובות.\nלומדים לתיאוריה יחד: https://test4u.teachable.com/' };
   return { version: 1, drafts: [photo, video, question, { ...photo, id: 'demo-published', status: 'published',
-    published_at: ago(1), preview: null, source: {...photo.source, name: 'Small habits. Safer roads.'} }],
+    published_at: ago(1), source: {...photo.source, name: 'Small habits. Safer roads.'} }],
     schedules: [
       { id: 'demo-s1', name: 'Morning driving tips', type: 'image', mode: 'draft', days: [0, 2, 4], time: '09:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
       { id: 'demo-s2', name: 'The theory challenge', type: 'question', mode: 'publish', days: [1, 3, 6], time: '18:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
@@ -24,6 +24,24 @@ export function demoCommand(state, command) {
   const draft = state.drafts.find(d => d.id === command.draft_id);
   let result;
   switch (command.action) {
+    case 'recover_missed': {
+      state.missed_runs ??= [];
+      let missed=state.missed_runs.find(r=>command.missed_id?r.id===command.missed_id:r.schedule_id===command.schedule_id&&r.slot===command.slot);
+      if(!missed) {
+        const schedule=state.schedules.find(s=>s.id===command.schedule_id);
+        if(!schedule)throw new Error('This missed run is not available.');
+        missed={id:`demo-missed-${schedule.id}-${command.slot}`,schedule_id:schedule.id,slot:command.slot,name:schedule.name,type:schedule.type,mode:schedule.mode,
+          scheduled_at:inZone(command.slot.replace('@','T'),schedule.timezone).toISOString(),status:'missed'};
+        state.missed_runs.push(missed);
+      }
+      const existing=state.drafts.find(d=>d.id===missed.draft_id);
+      if(existing){result=existing.id;break;}
+      const sample=demoState().drafts.find(d=>d.type===missed.type);
+      result=`recovered-${missed.id}`;
+      state.drafts.unshift({...sample,id:result,missed_run_id:missed.id,schedule_id:missed.schedule_id,created_at:new Date().toISOString(),status:'draft'});
+      Object.assign(missed,{draft_id:result,status:'draft'});
+      break;
+    }
     case 'run_due': {
       const now = new Date().toISOString();
       for (const task of dueTasks(state)) {

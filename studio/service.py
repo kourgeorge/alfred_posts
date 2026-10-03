@@ -8,7 +8,8 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
-from studio.scheduler import TYPES, due_slot, missed_slot, parse_future, validate_schedule
+from studio.scheduler import TYPES, due_slot, parse_future, validate_schedule
+from studio.missed import capture_missed, find_missed, remember
 from studio.store import now_iso
 
 
@@ -109,7 +110,10 @@ class Studio:
         def finish(state):
             item = find_draft(state, draft["id"])
             item.update(status="processing" if item["type"] == "video" else "published",
-                        published_at=now_iso(), facebook_id=str(result["id"]), facebook_url=url, preview=None)
+                        published_at=now_iso(), facebook_id=str(result["id"]), facebook_url=url)
+            for missed in state.get("missed_runs", []):
+                if missed.get("draft_id") == item["id"]:
+                    missed.update(status=item["status"], resolved_at=now_iso())
             if item["source"]["key"] not in state["posted"][item["type"]]:
                 state["posted"][item["type"]].append(item["source"]["key"])
         self.store.change(finish)
@@ -146,6 +150,27 @@ class Studio:
             # The request receipt tracks completion; posting results stay on drafts.
             self.tick()
             return None
+        if action == "recover_missed":
+            self.store.change(capture_missed)
+            state, _ = self.store.read()
+            missed = find_missed(state, command.get("missed_id")) if command.get("missed_id") else next(
+                (r for r in state.get("missed_runs", []) if r["schedule_id"] == command.get("schedule_id")
+                 and r["slot"] == command.get("slot")), None)
+            if not missed:
+                raise ValueError("This missed run is not available. Refresh Activity and try again.")
+            draft_id = missed.get("draft_id") or missed["id"]
+            draft = next((d for d in state["drafts"] if d["id"] == draft_id), None)
+            if draft and draft["status"] in ("preparing", "publishing", "uncertain", "deleted"):
+                raise ValueError("Review the existing post in Activity before recovering this run.")
+            if not draft:
+                self.generate(missed["type"], draft_id, missed["schedule_id"])
+            def recovered(state):
+                item = find_missed(state, missed["id"])
+                draft = find_draft(state, draft_id)
+                item.update(status=draft["status"], draft_id=draft_id)
+                draft["missed_run_id"] = missed["id"]
+            self.store.change(recovered)
+            return draft_id
         if action == "save_prompt":
             kind, prompt = command.get("type"), command.get("prompt")
             if kind not in TYPES:
@@ -184,6 +209,7 @@ class Studio:
                 schedule_id = command.get("schedule_id") or command["id"]
                 existing = next((s for s in state["schedules"] if s["id"] == schedule_id), None)
                 if existing:
+                    capture_missed(state, only_schedule=existing, retiring=True)
                     existing.update(value, starts_at=now_iso())
                 else:
                     if len(state["schedules"]) >= 12:
@@ -196,6 +222,7 @@ class Studio:
                 item = next((s for s in state["schedules"] if s["id"] == command.get("schedule_id")), None)
                 if not item:
                     raise ValueError("This schedule no longer exists.")
+                capture_missed(state, only_schedule=item, retiring=True)
                 if action == "delete_schedule":
                     state["schedules"].remove(item)
                 else:
@@ -203,6 +230,7 @@ class Studio:
                     item["starts_at"] = now_iso()
             return self.store.change(change)
         if action == "refresh":
+            self.store.change(capture_missed)
             self.refresh_videos()
             return None
         raise ValueError("Unknown command.")
@@ -237,6 +265,7 @@ class Studio:
     def tick(self, now=None):
         now = now or datetime.now(timezone.utc)
         self.store.change(lambda s: s.setdefault("scheduler", {}).update(last_started_at=now.isoformat()))
+        self.store.change(lambda s: capture_missed(s, now))
         self.refresh_videos()
         state, _ = self.store.read()
         for item in state["drafts"]:
@@ -247,21 +276,6 @@ class Studio:
                 except RuntimeError:
                     continue
         for schedule in state["schedules"]:
-            missed = missed_slot(schedule, now)
-            if missed:
-                def record_missed(state):
-                    latest = next((s for s in state["schedules"] if s["id"] == schedule["id"]), None)
-                    if not latest or missed_slot(latest, now) != missed:
-                        return
-                    latest.update(last_missed_slot=missed, last_missed_at=now.isoformat())
-                    state["operations"].insert(0, {
-                        "id": f"missed-{schedule['id']}-{missed}", "action": "missed_schedule",
-                        "status": "failed", "created_at": now.isoformat(), "finished_at": now.isoformat(),
-                        "schedule_id": schedule["id"], "slot": missed,
-                        "error": f"{latest['name']}: {missed} ({latest['timezone']}) was missed because no worker claimed it within 24 hours. Create a post manually if it is still needed.",
-                    })
-                    state["operations"] = state["operations"][:150]
-                self.store.change(record_missed)
             slot = due_slot(schedule, now)
             if not slot:
                 continue
@@ -279,10 +293,13 @@ class Studio:
             schedule = reserved_schedule
             draft_id = hashlib.sha256(f"{schedule['id']}:{slot}".encode()).hexdigest()[:32]
             def finish_run(state, error=None):
+                draft = next((d for d in state["drafts"] if d["id"] == draft_id), None)
+                if error and not draft:
+                    failed = remember(state, schedule, slot, now)
+                    failed.update(status="failed", error=error)
                 latest = next((s for s in state["schedules"] if s["id"] == schedule["id"]), None)
                 if not latest or latest.get("last_slot") != slot:
                     return
-                draft = next((d for d in state["drafts"] if d["id"] == draft_id), None)
                 latest.update(last_status=draft["status"] if draft else "failed", last_error=error)
             try:
                 self.command({"id": draft_id, "action": "generate", "type": schedule["type"], "schedule_id": schedule["id"]})

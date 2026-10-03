@@ -76,7 +76,10 @@ The gateway can also run as a standard Cloudflare Worker with these three secret
 - Drafts are limited to 30 unfinished items; delete or publish old drafts to make room.
 
 Photo/question previews are small JPEG thumbnails kept in private state. Original
-media stays on Google Drive/Forms. Video playback uses an embedded Drive preview
+media stays on Google Drive/Forms. Published posts retain their captions and previews;
+**Activity → Published** shows every post published through Alfred Studio, with its
+saved content, full-post view, and Facebook link. Posts created directly on Facebook
+are not imported. Video playback uses an embedded Drive preview
 and may require your Google account to have access. Source checksums are verified
 before publishing; if a file or question changed after preview, create a fresh draft.
 
@@ -100,7 +103,9 @@ successful check, even if it is later.
 The dashboard keeps a waiting or overdue occurrence visible until a worker claims
 it. Schedule cards show the latest run result, and the schedule page shows the
 last completed check. A missed occurrence is visible even before the next worker
-starts; once a worker returns, it also saves a missed-run receipt in Activity.
+starts; once a worker returns, it saves the missed run in a persistent list separate
+from the bounded command log. Missed runs survive schedule edits and deletion.
+Editing or pausing a schedule also preserves any unclaimed occurrence already due.
 The 30-minute interval is a request to GitHub, not a promise of on-time execution.
 The catch-up fix uses the existing private workflow without another hosting service.
 Increasing cron frequency alone cannot guarantee exact-minute publishing.
@@ -113,6 +118,14 @@ and draft-only tasks prepare drafts. Future, paused, expired, and already-claime
 recurring slots are not forced to run. The button stays disabled while the request
 is pending, then the dashboard shows completion and updated results. Posting
 errors remain visible in Schedule and Activity. Demo mode only simulates the check.
+
+**Activity → Needs attention** includes upcoming scheduled posts, waiting/overdue
+tasks, missed runs, failures, and recovered drafts awaiting review. Select
+**Prepare missed draft** to recover a missed occurrence for review; this never
+publishes automatically, even if its original schedule used automatic publication.
+Repeated recovery opens the same draft. Publish it explicitly after reviewing its
+caption and preview. An uncertain Facebook result is never reset or retried by
+recovery. GitHub delays can still happen; these records keep work visible for recovery.
 
 The default timezone is `Asia/Jerusalem`; daylight saving is handled by IANA timezone
 rules. The calendar displays each recurring task's chosen local time. Individual

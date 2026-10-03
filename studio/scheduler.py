@@ -24,14 +24,14 @@ def validate_schedule(value):
             "days": sorted(set(days)), "enabled": bool(value.get("enabled", True))}
 
 
-def recent_slots(schedule, now=None):
-    """Yield eligible local occurrences newest first, up to one week back."""
+def recent_slots(schedule, now=None, days_back=7):
+    """Yield eligible local occurrences newest first within the requested history."""
     if not schedule["enabled"]:
         return
     now = now or datetime.now(timezone.utc)
     local = now.astimezone(ZoneInfo(schedule["timezone"]))
     hour, minute = map(int, schedule["time"].split(":"))
-    for days_ago in range(8):
+    for days_ago in range(days_back + 1):
         target = (local - timedelta(days=days_ago)).replace(hour=hour, minute=minute, second=0, microsecond=0, fold=0)
         if target.weekday() not in schedule["days"]:
             continue

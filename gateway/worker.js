@@ -8,7 +8,7 @@ const secrets = new Set(['FB_PAGE_ACCESS_TOKEN', 'FB_PAGE_ID', 'OPENAI_API_KEY',
   'OPENAI_MODEL', 'OPENAI_MODEL_VIDEO', 'OPENAI_MODEL_QUESTION',
   'GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID', 'DRIVE_FOLDER_ID_VIDEO', 'DRIVE_FOLDER_ID_QUESTIONS']);
 const actions = new Set(['generate', 'publish', 'save_draft', 'schedule_draft', 'cancel_draft',
-  'delete_draft', 'save_schedule', 'toggle_schedule', 'delete_schedule', 'refresh', 'save_prompt', 'run_due']);
+  'delete_draft', 'save_schedule', 'toggle_schedule', 'delete_schedule', 'refresh', 'save_prompt', 'run_due', 'recover_missed']);
 const attempts = new Map();
 
 class HttpError extends Error {

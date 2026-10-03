@@ -3,6 +3,7 @@ import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
+import { activityItems, filterActivity } from './activity.js';
 import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, dueTasks, inZone, zonedParts, sourceUrl } from './utils.js';
 
 const root = document.querySelector('#app');
@@ -120,10 +121,10 @@ function composer() {
 
 function mediaPreview(draft) {
   if (!draft) return `<div class="media-placeholder">${icon('image')}<span>Your media will appear here</span></div>`;
-  if (draft.type==='video') return `<div class="video-preview"><div class="video-pattern"></div><span class="video-play">${icon('play')}</span><strong>${e(draft.source.name)}</strong><span>${demo?'Sample video preview':'Your selected Drive video'}</span>${sourceUrl(draft.source.url)?`<button class="btn" data-action="watch-video">Watch selected video ${icon('external')}</button>`:''}</div>`;
+  if (draft.type==='video') return `<div class="video-preview"><div class="video-pattern"></div><span class="video-play">${icon('play')}</span><strong>${e(draft.source.name)}</strong><span>${demo?'Sample video preview':'Your selected Drive video'}</span>${sourceUrl(draft.source.url)?`<button class="btn" data-action="watch-video" data-id="${e(draft.id)}">Watch selected video ${icon('external')}</button>`:''}</div>`;
   const src = draft.preview;
   if (src && (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(src) || demo&&src==='./road.svg')) return `<img class="post-image" src="${e(src)}" alt="${e(draft.source.name)}" />`;
-  return `<div class="media-placeholder">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a class="text-link" href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer">Open original ${icon('external')}</a>`:''}</div>`;
+  return `<div class="media-placeholder">${icon(draft.type)}<span>${draft.status==='published'?'No saved image preview':e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a class="text-link" href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer">Open original ${icon('external')}</a>`:''}</div>`;
 }
 
 function schedulePage() {
@@ -137,18 +138,29 @@ function schedulePage() {
 
 function scheduleCard(s) {
   const run=scheduleRun(s,state.drafts);
-  const message=run?.error || ({waiting:'Waiting for the next worker check.',overdue:'The worker is delayed. This run can still catch up within 24 hours.',missed:'The 24-hour catch-up window ended. Create a post manually if it is still needed.'}[run?.status] || 'Latest run');
+  const message=run?.error || ({waiting:'Waiting for the next worker check.',overdue:'The worker is delayed. This run can still catch up within 24 hours.',missed:'This run needs review. Open Needs attention in Activity to prepare a missed draft.'}[run?.status] || 'Latest run');
   return `<article class="schedule-card ${s.enabled?'':'paused-card'}">${typeIcon(s.type)}<div class="schedule-card-main"><div><h3>${e(s.name)}</h3><span class="badge ${s.enabled?'active':'paused'}"><i></i>${s.enabled?'Active':'Paused'}</span></div><p>${e(s.days.map(d=>dayNames[d]).join(', '))} <b>·</b> ${e(s.time)} <b>·</b> ${e(s.timezone)} <b>·</b> ${s.mode==='draft'?'Prepare a draft':'Publish automatically'}</p>${run?`<div class="schedule-run">${badge(run.status)}<span>${e(formatDate(run.date))} · ${e(message)}</span></div>`:''}</div><div class="schedule-card-actions"><button class="icon-btn" data-action="edit-schedule" data-id="${e(s.id)}" aria-label="Edit ${e(s.name)}" ${blocked()}>${icon('edit')}</button><button class="switch ${s.enabled?'on':''}" role="switch" aria-checked="${s.enabled}" aria-label="Enable ${e(s.name)}" data-action="toggle-schedule" data-id="${e(s.id)}" ${blocked()}><span></span></button></div></article>`;
 }
 
 function activityPage() {
-  const all = state.drafts.filter(d=>!['draft','deleted'].includes(d.status));
-  const filtered = all.filter(d=>activityFilter==='all'||activityFilter==='published'&&d.status==='published'||activityFilter==='attention'&&['failed','uncertain','preparing','publishing','processing'].includes(d.status)||activityFilter==='scheduled'&&d.status==='scheduled');
-  const failedOps = state.operations.filter(op=>op.status==='failed');
+  const all = activityItems(state);
+  const filtered = filterActivity(all,activityFilter);
+  const failedOps = state.operations.filter(op=>op.status==='failed'&&op.action!=='missed_schedule');
   return `${heading('THE BIGGER PICTURE','Every post has a story.','See what’s published, what’s on its way, and what needs a little attention.',`<button class="btn secondary" data-action="refresh" ${blocked()}>${icon('refresh')} Refresh status</button>`)}
-    <div class="filter-bar" role="group" aria-label="Filter activity">${[['all','All posts'],['published','Published'],['scheduled','Scheduled'],['attention','Needs attention']].map(([value,label])=>`<button data-action="filter" data-filter="${value}" aria-pressed="${activityFilter===value}" class="${activityFilter===value?'selected':''}">${label}</button>`).join('')}</div>
-    <section class="panel activity-panel">${filtered.length?filtered.map(d=>`<article class="activity-row">${typeIcon(d.type)}<div class="activity-main"><strong>${e(d.source.name)}</strong><span>${e(typeNames[d.type])} <b>·</b> ${e(formatDate(d.published_at||d.scheduled_at||d.created_at))}</span>${d.error?`<p class="activity-error">${e(d.error)}</p>`:''}</div>${badge(d.status)}${sourceUrl(d.facebook_url)?`<a class="icon-btn" href="${e(sourceUrl(d.facebook_url))}" target="_blank" rel="noopener noreferrer" aria-label="View post on Facebook">${icon('external')}</a>`:`<button class="icon-btn" data-action="open-draft" data-id="${e(d.id)}" aria-label="Open post">${icon('chevron')}</button>`}</article>`).join(''):empty('activity','A clean slate','Your published and scheduled posts will appear here.')}</section>
-    ${failedOps.length?`<section class="panel operation-panel"><div class="section-title"><h2>Recent workflow issues</h2>${demo?'':`<a class="text-link" href="https://github.com/${e(github.repoName())}/actions" target="_blank" rel="noopener noreferrer">Open GitHub Actions ${icon('external')}</a>`}</div>${failedOps.slice(0,6).map(op=>`<div class="operation-row"><span class="error-dot"></span><div><strong>${e(op.action.replaceAll('_',' '))}</strong><p>${e(op.error)}</p></div><span class="muted">${e(formatDate(op.created_at))}</span></div>`).join('')}</section>`:''}`;
+    <div class="filter-bar activity-filters" role="group" aria-label="Filter activity">${[['all','All activity'],['published','Published'],['scheduled','Scheduled'],['attention','Needs attention']].map(([value,label])=>`<button data-action="filter" data-filter="${value}" aria-pressed="${activityFilter===value}" class="${activityFilter===value?'selected':''}">${label} <span>${filterActivity(all,value).length}</span></button>`).join('')}</div>
+    ${activityFilter==='attention'?'<p class="activity-help">Scheduled posts, overdue tasks, and missed runs stay here until handled. Recover a missed run as a draft to review before publishing.</p>':''}
+    <section class="activity-feed">${filtered.length?filtered.map(activityCard).join(''):empty('activity',activityFilter==='published'?'No published posts yet':'Nothing here right now',activityFilter==='published'?'Posts published through Alfred Studio appear here with their saved content.':'Your posts and scheduled tasks will appear here.')}</section>
+    ${['all','attention'].includes(activityFilter)&&failedOps.length?`<section class="panel operation-panel"><div class="section-title"><h2>Recent workflow issues</h2>${demo?'':`<a class="text-link" href="https://github.com/${e(github.repoName())}/actions" target="_blank" rel="noopener noreferrer">Open GitHub Actions ${icon('external')}</a>`}</div>${failedOps.map(op=>`<div class="operation-row"><span class="error-dot"></span><div><strong>${e(op.action.replaceAll('_',' '))}</strong><p>${e(op.error)}</p></div><span class="muted">${e(formatDate(op.created_at))}</span></div>`).join('')}</section>`:''}`;
+}
+
+function activityCard(item) {
+  if(item.kind==='post') {
+    const d=item.draft;
+    return `<article class="panel activity-post" data-post-id="${e(d.id)}"><header class="activity-post-header">${typeIcon(d.type)}<div class="activity-main"><strong>${e(d.source.name)}</strong><span>${e(typeNames[d.type])} · ${e(formatDate(item.date))}</span></div>${badge(d.status)}</header>${d.error?`<p class="activity-error">${e(d.error)}</p>`:''}<div class="activity-post-content"><div class="activity-media">${mediaPreview(d)}</div><p class="activity-caption" dir="auto">${e(d.text)}</p></div><footer class="activity-post-actions"><button class="text-link" data-action="open-draft" data-id="${e(d.id)}">${icon(editable(d)?'edit':'chevron')} ${editable(d)?'Review post':'Open full post'}</button>${sourceUrl(d.facebook_url)?`<a class="text-link" href="${e(sourceUrl(d.facebook_url))}" target="_blank" rel="noopener noreferrer">View on Facebook ${icon('external')}</a>`:''}</footer></article>`;
+  }
+  const exists=state.schedules.some(s=>s.id===item.scheduleId);
+  const message={scheduled:item.mode==='draft'?'Will prepare a draft for review.':'Will publish when its time arrives.',waiting:'Ready for the next worker check.',overdue:'Waiting for the worker. You can run due tasks now.',missed:'This run is saved for recovery. Prepare a draft, review it, and publish when ready.',failed:item.error||'The draft could not be prepared. Try preparing it again after fixing the issue.'}[item.status];
+  return `<article class="panel activity-task"><header class="activity-post-header">${typeIcon(item.type)}<div class="activity-main"><strong>${e(item.name)}</strong><span>${e(typeNames[item.type])} · ${e(formatDate(item.date))}</span></div>${badge(item.status)}</header><p class="activity-help">${e(message)}</p><div class="activity-post-actions">${['missed','failed'].includes(item.status)?`<button class="btn secondary" data-action="recover-missed" data-id="${e(item.missedId||'')}" data-schedule-id="${e(item.scheduleId)}" data-slot="${e(item.slot)}" ${blocked()}>${icon('edit')} Prepare missed draft</button>`:['waiting','overdue'].includes(item.status)?`<button class="btn secondary" data-action="run-due" ${blocked()}>${icon('send')} Run due tasks now</button>`:''}${exists?`<button class="text-link" data-action="edit-schedule" data-id="${e(item.scheduleId)}" ${blocked()}>Edit schedule ${icon('chevron')}</button>`:''}</div></article>`;
 }
 
 function settingsPage() {
@@ -210,6 +222,7 @@ async function sync() {
           if(old.promptType)promptEdits.delete(old.promptType);
           if(op.result && state.drafts.some(d=>d.id===op.result)) {
             selectedDraft=op.result;selectedType=currentDraft().type;edits.delete(op.result);editRevisions.delete(op.result);
+            if(old.openResult) location.hash='create';
           }
           toast(old.success);
         }
@@ -227,12 +240,13 @@ async function sync() {
 async function command(payload,label,success) {
   if(pending) return toast('Let the current request finish first.');
   const id=crypto.randomUUID();
-  pending={id,label,success,started:Date.now(),promptType:payload.action==='save_prompt'?payload.type:null}; render();
+  pending={id,label,success,started:Date.now(),promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
   try {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
       const result=demoCommand(state,{...payload,id});
       if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);editRevisions.delete(result);}
+      if(payload.action==='recover_missed' && result) location.hash='create';
       if(payload.action==='save_prompt')promptEdits.delete(payload.type);
       pending=null;render();toast(`${success} (demo only)`);
     } else {
@@ -375,6 +389,9 @@ document.addEventListener('click',async event=> {
       `${tasks.length?`<div class="run-due-list">${tasks.map(task=>`<div class="run-due-item">${typeIcon(task.type)}<div><strong>${e(task.name)}</strong><span>${e(formatDate(task.date))} · ${task.mode==='draft'?'Prepare a draft':task.kind==='draft'?'Publish saved post':'Generate and publish'}</span></div></div>`).join('')}</div>`:'<p class="field-hint">No tasks are currently due. You can still request a fresh check.</p>'}<p class="field-hint">The check uses your saved schedules when it starts. Paused, future, and expired recurring tasks are not forced to run. This usually takes about a minute.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Cancel</button><button class="btn primary" data-action="confirm-run-due">${icon('send')} ${demo?'Simulate due tasks':'Run due tasks'}</button></div>`);
   }
   if(action==='confirm-run-due') {closeModal();await command({action:'run_due'},'Running due tasks…','Schedule check finished. Review the results in Schedule and Activity.');}
+  if(action==='recover-missed') {
+    await command({action:'recover_missed',missed_id:button.dataset.id||undefined,schedule_id:button.dataset.scheduleId,slot:button.dataset.slot},'Preparing the missed draft…','The missed run is ready to review.');
+  }
   if(action==='new-schedule') scheduleModal();
   if(action==='edit-schedule') scheduleModal(button.dataset.id);
   if(action==='toggle-schedule') {const s=state.schedules.find(s=>s.id===button.dataset.id);await command({action:'toggle_schedule',schedule_id:s.id,enabled:!s.enabled},'Updating your schedule…',s.enabled?'Schedule paused':'Schedule resumed');}
@@ -384,7 +401,7 @@ document.addEventListener('click',async event=> {
   if(action==='filter') {activityFilter=button.dataset.filter;render();}
   if(action==='refresh') {if(!demo){await sync();render();if(!signedIn)return;}await command({action:'refresh'},'Checking publication status…','Publication status refreshed');}
   if(action==='watch-video') {
-    const id=currentDraft().source.id;
+    const id=(state.drafts.find(d=>d.id===button.dataset.id)||currentDraft())?.source.id;
     if(/^[\w-]+$/.test(id)) modal('Your selected video','Playback uses your Google Drive access.',`<iframe class="drive-player" src="https://drive.google.com/file/d/${e(id)}/preview" title="Selected video from Google Drive" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`);
   }
 });
