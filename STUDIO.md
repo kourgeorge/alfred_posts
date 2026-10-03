@@ -51,7 +51,7 @@ settings and redeploy its saved version. Facebook/OpenAI credentials are changed
 inside the dashboard's **Settings** page as before.
 
 For a new installation, use a fine-grained GitHub token restricted to the private
-automation repository with **Actions: read/write**, **Contents: read**, and
+automation repository with **Actions: read/write**, **Contents: read/write**, and
 **Secrets: read/write**. The current installation uses the owner's existing GitHub
 connection stored as a runtime secret. The gateway cannot proxy arbitrary GitHub
 URLs, repositories, branches, workflows, or secret names.
@@ -82,6 +82,37 @@ saved content, full-post view, and Facebook link. Posts created directly on Face
 are not imported. Video playback uses an embedded Drive preview
 and may require your Google account to have access. Source checksums are verified
 before publishing; if a file or question changed after preview, create a fresh draft.
+
+### Upload your own photo or video
+
+In **Create a post**, choose **Upload image or video**, select or drop a file, and
+describe it in a few words. **Generate caption** combines this description with
+your saved Photo or Video writing instructions. The AI receives text only; it
+does not inspect images, video frames, or audio. Review the caption and original
+media, then publish or schedule the draft as usual. **Existing resources** keeps
+the Drive/Forms generation flow available.
+
+Supported uploads: still JPG, PNG, or WebP images up to 10 MiB, and MP4 or MOV
+videos up to 50 MiB. Descriptions can contain up to 2,000 characters. Browser video
+playback depends on the file's codec; the preview also offers a download link.
+
+Original files are saved as 2 MiB parts and an immutable manifest under
+`uploads/<id>/` on the private `studio-state` branch, outside `state.json`. The
+gateway needs Contents write permission for uploads. A failed transfer can be
+retried during the same session without replacing parts already saved. Incomplete
+uploads remain private and are not published. Files and private Git history are
+retained when drafts are deleted, just like existing state history; large upload
+libraries will grow the repository and may eventually need dedicated media storage.
+
+Every part is stored before caption generation is requested. The worker checks the
+file type, size, and whole-file checksum before generating a caption and checks the
+checksum again before publication. Scheduled uploads therefore work after the browser
+is closed. Video playback reads authenticated parts; object URLs and the current
+file selection are cleared when the studio is locked. Demo uploads stay in the browser.
+
+Deploy both `gateway/worker.js` and the frontend/Python source for this feature.
+The private workflow already checks out the current Python source and needs no
+new secrets or workflow changes. Uploaded posts do not require Drive credentials.
 
 ## Recurring schedules
 

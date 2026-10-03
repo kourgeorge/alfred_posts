@@ -50,6 +50,19 @@ def generate_video_post_text(config: Config, file_name: str, *, system_prompt: s
     return _complete(config, config.openai_model_video, system_prompt or SYSTEM_PROMPT_VIDEO, user_prompt)
 
 
+def generate_upload_post_text(config: Config, post_type: str, description: str, *, system_prompt: str | None = None) -> str:
+    """Write from the user's description. Never send uploaded media to the model."""
+    if post_type not in ("image", "video"):
+        raise ValueError("Choose a photo or video for your upload.")
+    model = config.openai_model_video if post_type == "video" else config.openai_model_image
+    instructions = (system_prompt or DEFAULT_PROMPTS[post_type]) + (
+        "\n\nהפוסט מלווה קובץ שהמשתמש העלה. התבסס על התיאור שסיפק, לא על שם קובץ. "
+        "לא קיבלת את התמונה או הסרטון: אל תטען שצפית בהם ואל תמציא פרטים חזותיים או דברים שנאמרו."
+    )
+    return _complete(config, model, instructions,
+                     f"תאריך: {_today(config)}\nסוג הפוסט: {post_type}\nתיאור המשתמש:\n{description}")
+
+
 def generate_question_post_text(config: Config, question: dict, *, system_prompt: str | None = None) -> str:
     # The model writes only the introduction. The quiz is assembled from source
     # strings so no option can be omitted, reworded, or disclosed as the answer.

@@ -24,6 +24,14 @@ export function demoCommand(state, command) {
   const draft = state.drafts.find(d => d.id === command.draft_id);
   let result;
   switch (command.action) {
+    case 'generate_upload': {
+      const upload=command.demo_upload;
+      state.drafts.unshift({id:command.id,type:command.type,status:'draft',revision:1,created_at:new Date().toISOString(),
+        source:{key:`upload:${command.upload_id}`,upload_id:command.upload_id,name:upload.name,mime:upload.mime,
+          size:upload.size,parts:upload.parts,description:command.description},preview:null,
+        text:`${command.description}\n\nצעד קטן בדרך לנהיגה בטוחה יותר. 🚗\nמה אתם חושבים? שתפו בתגובות.\n\nhttps://test4u.teachable.com/\nwww.test4u.co.il`});
+      result=command.id;break;
+    }
     case 'recover_missed': {
       state.missed_runs ??= [];
       let missed=state.missed_runs.find(r=>command.missed_id?r.id===command.missed_id:r.schedule_id===command.schedule_id&&r.slot===command.slot);

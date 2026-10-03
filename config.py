@@ -27,7 +27,7 @@ class Config:
     timezone: str
 
     @classmethod
-    def from_env(cls) -> "Config":
+    def from_env(cls, *, require_google=True) -> "Config":
         load_dotenv()
 
         def require(name: str) -> str:
@@ -38,7 +38,7 @@ class Config:
 
         google_api_key = os.environ.get("GOOGLE_API_KEY") or None
         google_service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE") or None
-        if not google_api_key and not google_service_account_file:
+        if require_google and not google_api_key and not google_service_account_file:
             raise WorkflowError(
                 "Set either GOOGLE_API_KEY (for a public Drive folder) or "
                 "GOOGLE_SERVICE_ACCOUNT_FILE (see .env.example)"

@@ -10,6 +10,7 @@ from PIL import Image, ImageOps
 import content
 import drive
 import facebook
+from studio.uploads import Uploads, validate_description, validate_media
 
 
 def digest(data):
@@ -40,8 +41,23 @@ def thumbnail(data):
 
 
 class MediaService:
-    def __init__(self, config):
+    def __init__(self, config, uploads=None):
         self.config = config
+        self.uploads = Uploads(uploads) if uploads else None
+
+    def prepare_upload(self, post_type, upload_id, description, prompt=None):
+        description = validate_description(description)
+        item, data = self.uploads.read(upload_id)
+        if item["type"] != post_type:
+            raise ValueError("The uploaded file does not match the selected post format.")
+        validate_media(item, data)
+        preview = thumbnail(data) if post_type == "image" else None
+        if post_type == "image" and not preview:
+            raise ValueError("This image could not be previewed. Choose a different image.")
+        text = content.generate_upload_post_text(self.config, post_type, description, system_prompt=prompt)
+        return {"source": {"key": f"upload:{upload_id}", "upload_id": upload_id, "name": item["name"],
+                           "sha256": item["sha256"], "size": item["size"], "mime": item["mime"],
+                           "parts": item["parts"], "description": description}, "text": text, "preview": preview}
 
     def prepare(self, post_type, posted, prompt=None):
         c = self.config
@@ -65,7 +81,11 @@ class MediaService:
 
     def download(self, draft):
         source = draft["source"]
-        if draft["type"] == "question":
+        if source.get("upload_id"):
+            item, data = self.uploads.read(source["upload_id"])
+            if item["type"] != draft["type"]:
+                raise ValueError("The uploaded file does not match this draft.")
+        elif draft["type"] == "question":
             form = drive.build_forms_service(self.config).forms().get(formId=source["form_id"]).execute()
             item = next((x for x in drive._questions_with_images(form)
                          if x["question_id"] == source["question_id"]), None)

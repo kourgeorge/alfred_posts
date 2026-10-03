@@ -23,7 +23,7 @@ def main():
             os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"] = key_path
         store = GitHubStore()
         store.initialize()
-        app = Studio(store, lambda: MediaService(Config.from_env()))
+        app = Studio(store, lambda: MediaService(Config.from_env(require_google=False), uploads=store))
         command = os.environ.get("STUDIO_COMMAND", "").strip()
         if command:
             app.command(json.loads(command))

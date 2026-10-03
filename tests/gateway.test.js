@@ -1,5 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import worker from '../gateway/worker.js';
 
 const env = { STUDIO_PASSWORD: 'test-password', SESSION_SECRET: 'test-signing-secret', GITHUB_TOKEN: 'server-only-github-key' };
@@ -64,6 +65,9 @@ test('only fixed repository endpoints and approved service secrets are available
     const recover = {id:'recover-missed-123',action:'recover_missed',missed_id:'missed-run-123'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:recover}), env)).status, 204);
     assert.deepEqual(JSON.parse(calls.at(-1).options.body), {ref:'main',inputs:{command:JSON.stringify(recover)}});
+    const uploaded = {id:'upload-generate-123',action:'generate_upload',type:'image',upload_id:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',description:'Parking practice'};
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:uploaded}), env)).status, 204);
+    assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), uploaded);
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
@@ -94,4 +98,65 @@ test('upstream errors never expose credentials or response bodies', async () => 
     assert.equal(response.status, 502);
     assert.equal((await response.text()).includes(env.GITHUB_TOKEN), false);
   } finally { upstream.mock.restore(); }
+});
+
+const uploadId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+const partPath = `/api/uploads/${uploadId}/parts/0`;
+test('uploads require a private repository, persist exact chunks and retry without overwriting', async () => {
+  const token = await login();
+  const files = new Map(); let conflict = true; let privateRepo = true;
+  const upstream = mock.method(globalThis, 'fetch', async (url, options) => {
+    const path = new URL(url).pathname.replace('/repos/kourgeorge/alfred_posts_automation','');
+    assert.equal(options.headers.Authorization, `Bearer ${env.GITHUB_TOKEN}`);
+    if (!path) return Response.json({private:privateRepo});
+    if (options.method === 'PUT') {
+      const input = JSON.parse(options.body);
+      assert.equal(input.branch,'studio-state');
+      assert.equal(input.sha,undefined); // Never overwrite existing upload data.
+      if (conflict) {conflict=false;return new Response('',{status:409});}
+      if (files.has(path)) return new Response('',{status:422});
+      const data = Buffer.from(input.content,'base64');
+      const sha = createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex');
+      files.set(path,{sha,size:data.length,content:input.content,encoding:'base64'});
+      return Response.json({content:{sha}},{status:201});
+    }
+    if (path.startsWith('/git/blobs/')) return Response.json([...files.values()].find(file=>path.endsWith(file.sha)));
+    const file = files.get(path);
+    return file ? Response.json({...file,encoding:'none',content:''}) : new Response('',{status:404});
+  });
+  try {
+    const payload = {content:Buffer.alloc(2*1024*1024,17).toString('base64')};
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',value:payload}),env)).status,401);
+    assert.equal(files.size,0);
+    const first = await worker.fetch(request(partPath,{method:'PUT',token,value:payload}),env);
+    assert.equal(first.status,200);
+    assert.equal((await first.json()).size,2*1024*1024);
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',token,value:payload}),env)).status,200);
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',token,value:{content:'YQ=='}}),env)).status,409);
+    assert.equal(files.size,1);
+    const read = await worker.fetch(request(partPath,{token}),env);
+    assert.equal((await read.json()).content,payload.content);
+    const manifest = {name:'שיעור.png',type:'image',mime:'image/png',size:2*1024*1024,parts:1,sha256:'a'.repeat(64)};
+    assert.equal((await worker.fetch(request(`/api/uploads/${uploadId}`,{method:'POST',token,value:manifest}),env)).status,201);
+    assert.equal(files.size,2);
+    privateRepo=false;
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',token,value:payload}),env)).status,403);
+  } finally {upstream.mock.restore();}
+});
+
+test('upload formats, limits, paths and descriptions are validated before contacting GitHub', async () => {
+  const token = await login();
+  const upstream = mock.method(globalThis,'fetch',()=>{throw new Error('Must not reach GitHub');});
+  const manifest = {name:'photo.png',type:'image',mime:'image/png',size:20,parts:1,sha256:'a'.repeat(64)};
+  try {
+    for (const invalid of [{name:'../photo.png'},{mime:'image/svg+xml'},{type:'question'},{parts:2},{sha256:'invalid'}])
+      assert.equal((await worker.fetch(request(`/api/uploads/${uploadId}`,{method:'POST',token,value:{...manifest,...invalid}}),env)).status,400);
+    assert.equal((await worker.fetch(request(`/api/uploads/${uploadId}`,{method:'POST',token,value:{...manifest,size:11*1024*1024}}),env)).status,413);
+    assert.equal((await worker.fetch(request(`/api/uploads/${uploadId}/parts/25`,{method:'PUT',token,value:{content:'YQ=='}}),env)).status,400);
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',token,value:{content:'!bad'}}),env)).status,400);
+    assert.equal((await worker.fetch(request(partPath,{method:'PUT',token,value:{content:'a'.repeat(3*1024*1024)}}),env)).status,413);
+    for (const invalid of [{description:''},{description:'x'.repeat(2001)},{type:'question'},{upload_id:'../../state.json'}])
+      assert.equal((await worker.fetch(request('/api/commands',{method:'POST',token,value:{id:'request-upload',action:'generate_upload',type:'image',upload_id:uploadId,description:'Parking practice',...invalid}}),env)).status,400);
+    assert.equal(upstream.mock.callCount(),0);
+  } finally {upstream.mock.restore();}
 });

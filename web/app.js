@@ -4,6 +4,7 @@ import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
 import { activityItems, filterActivity } from './activity.js';
+import { fileDetails, uploadFile, downloadUpload } from './uploads.js';
 import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, dueTasks, inZone, zonedParts, sourceUrl } from './utils.js';
 
 const root = document.querySelector('#app');
@@ -29,10 +30,17 @@ let settingsView = 'connections';
 let promptType = 'image';
 let promptSnapshot = null;
 const promptEdits = new Map();
+let sourceMode = 'library';
+let selectedUpload = null;
+let uploadDescription = '';
+let uploadError = '';
+let uploading = null;
+const uploadedMedia = new Map();
+let mediaRequest = null;
 const route = () => ['overview','create','schedule','activity','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
 const currentDraft = () => state.drafts.find(d => d.id === selectedDraft);
 const draftText = draft => edits.get(draft.id) ?? draft.text;
-const blocked = () => pending ? 'disabled' : '';
+const blocked = () => pending || uploading ? 'disabled' : '';
 const badge = (status) => `<span class="badge ${e(status)}"><i></i>${e({draft:'Draft',scheduled:'Scheduled',preparing:'Preparing',publishing:'Publishing',processing:'Processing',published:'Published',failed:'Needs attention',uncertain:'Check Facebook',deleted:'Deleted',running:'In progress',complete:'Complete',waiting:'Waiting for worker',overdue:'Overdue',missed:'Missed'}[status] || status)}</span>`;
 const typeIcon = (type) => `<span class="type-icon ${e(type)}">${icon(type)}</span>`;
 const brand = () => `<div class="brand"><span class="brand-symbol">${icon('leaf')}</span><span>alfred<span class="brand-dot">.</span></span></div>`;
@@ -103,13 +111,27 @@ function draftRow(draft) {
 
 function empty(ico,title,description) { return `<div class="empty-state">${icon(ico)}<strong>${title}</strong><p>${description}</p></div>`; }
 
+function sourcePanel() {
+  const selection = selectedUpload;
+  return `<div class="panel source-panel"><div class="step-title"><span>01</span><h2>Choose your source</h2></div>
+    <div class="source-picker" role="group" aria-label="Post source">${[['library','Existing resources'],['upload','Upload image or video']].map(([mode,label])=>`<button type="button" data-action="source-mode" data-mode="${mode}" aria-pressed="${sourceMode===mode}" class="${sourceMode===mode?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
+    ${sourceMode==='library'?`<div class="format-picker">${Object.keys(typeNames).map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}" ${blocked()}>${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:'A photo from your Drive folder, with a fresh Hebrew caption.',video:'A video from your Drive folder, with a caption to match.',question:'A question and its image from Google Forms, with the original answers.'}[selectedType]}</p><button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} Generate ${typeNames[selectedType].toLowerCase()} draft</button>`:
+    `<form id="upload-form"><div class="upload-dropzone"><label for="media-upload">Choose an image or video</label><input id="media-upload" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" ${blocked()} /><p class="field-hint">Or drop a file here. JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB.</p></div>
+    ${selection?`<div class="upload-selection">${selection.details.type==='image'?`<img src="${e(selection.url)}" alt="Selected upload preview" />`:`<video src="${e(selection.url)}" controls playsinline preload="metadata" aria-label="Selected upload preview"></video>`}<div><strong>${e(selection.file.name)}</strong><span>${selection.file.size<1024*1024?`${Math.ceil(selection.file.size/1024)} KB`:`${(selection.file.size/1024/1024).toFixed(1)} MB`} · ${e(typeNames[selection.details.type])}</span><button type="button" class="text-link" data-action="remove-upload" ${blocked()}>Remove file</button></div></div>`:''}
+    <label for="upload-description">Describe your image or video</label><textarea id="upload-description" dir="auto" maxlength="2000" rows="3" required placeholder="For example: Practicing parallel parking with a beginner." ${blocked()}>${e(uploadDescription)}</textarea><p class="field-hint">A few words are enough. Your description and saved writing instructions guide the caption.</p>
+    <div id="upload-error" class="form-error" role="alert">${e(uploadError)}</div>
+    ${uploading?`<div id="upload-progress" role="status">Saving your upload… ${uploading.progress}%</div><button type="button" class="text-link" data-action="cancel-upload">Cancel upload</button>`:''}
+    <button class="btn primary generate-btn" type="submit" ${blocked()||(!selection||!uploadDescription.trim()?'disabled':'')}>${icon('spark')} Generate caption</button></form>`}
+    <div class="micro-note">Creates a preview. You decide when to publish.</div></div>`;
+}
+
 function composer() {
   const draft = currentDraft();
   editorSnapshot = draft ? {id: draft.id, revision: editRevisions.get(draft.id) ?? draft.revision, text: draftText(draft)} : null;
   const available = state.drafts.filter(d=>['draft','scheduled','failed'].includes(d.status));
   const canEdit = editable(draft);
   return `${heading('CREATE & PREVIEW','Good ideas, ready to share.','Pick a format, make it yours, and see exactly what goes out.')}
-    <div class="composer-layout"><section class="composer-controls"><div class="panel"><div class="step-title"><span>01</span><h2>Choose your format</h2></div><div class="format-picker">${Object.keys(typeNames).map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}">${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:'A photo from your Drive folder, with a fresh Hebrew caption.',video:'A video from your Drive folder, with a caption to match.',question:'A question and its image from Google Forms, with the original answers.'}[selectedType]}</p><button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} Generate ${typeNames[selectedType].toLowerCase()} draft</button><div class="micro-note">Creates a preview. You decide when to publish.</div></div>
+    <div class="composer-layout"><section class="composer-controls">${sourcePanel()}
     <div class="panel caption-panel"><div class="step-title"><span>02</span><h2>Make it yours</h2>${draft?badge(draft.status):''}</div>
     ${available.length?`<label for="draft-select">Open a saved draft</label><select id="draft-select"><option value="">Choose a draft…</option>${available.map(d=>`<option value="${e(d.id)}" ${d.id===selectedDraft?'selected':''}>${e(typeNames[d.type])} · ${e(d.source.name)}</option>`).join('')}</select>`:''}
     ${draft?`<div class="source-label">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer" aria-label="Open original media">${icon('external')}</a>`:''}</div><label for="caption">Post caption <span>Hebrew supported</span></label><textarea id="caption" dir="auto" maxlength="12000" ${canEdit&&!pending?'':'readonly'}>${e(draftText(draft))}</textarea><div class="caption-meta"><span id="caption-count">${draftText(draft).length.toLocaleString()} characters</span><span id="edit-state">${edits.has(draft.id)?'Unsaved changes':'Saved draft'}</span></div>
@@ -121,7 +143,8 @@ function composer() {
 
 function mediaPreview(draft) {
   if (!draft) return `<div class="media-placeholder">${icon('image')}<span>Your media will appear here</span></div>`;
-  if (draft.type==='video') return `<div class="video-preview"><div class="video-pattern"></div><span class="video-play">${icon('play')}</span><strong>${e(draft.source.name)}</strong><span>${demo?'Sample video preview':'Your selected Drive video'}</span>${sourceUrl(draft.source.url)?`<button class="btn" data-action="watch-video" data-id="${e(draft.id)}">Watch selected video ${icon('external')}</button>`:''}</div>`;
+  if (draft.type==='video') return `<div class="video-preview"><div class="video-pattern"></div><span class="video-play">${icon('play')}</span><strong>${e(draft.source.name)}</strong><span>${draft.source.upload_id?'Your uploaded video':demo?'Sample video preview':'Your selected Drive video'}</span>${draft.source.upload_id||sourceUrl(draft.source.url)?`<button class="btn" data-action="watch-video" data-id="${e(draft.id)}">Watch selected video ${icon('external')}</button>`:''}</div>`;
+  if (demo && draft.source.upload_id && uploadedMedia.has(draft.source.upload_id)) return `<img class="post-image" src="${e(uploadedMedia.get(draft.source.upload_id))}" alt="${e(draft.source.name)}" />`;
   const src = draft.preview;
   if (src && (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(src) || demo&&src==='./road.svg')) return `<img class="post-image" src="${e(src)}" alt="${e(draft.source.name)}" />`;
   return `<div class="media-placeholder">${icon(draft.type)}<span>${draft.status==='published'?'No saved image preview':e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a class="text-link" href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer">Open original ${icon('external')}</a>`:''}</div>`;
@@ -197,9 +220,16 @@ function connectionsPage() {
 const displayState = () => JSON.stringify([state, state.schedules.map(s=>scheduleRun(s,state.drafts)?.status)]);
 function render() {
   signedIn ? shell() : login();
+  const input=document.querySelector('#media-upload');
+  if(input&&selectedUpload) {
+    const transfer=new DataTransfer();transfer.items.add(selectedUpload.file);input.files=transfer.files;
+  }
   renderedState = signedIn ? displayState() : '';
 }
 function lockStudio() {
+  uploading?.controller.abort();uploading=null;
+  for(const url of uploadedMedia.values()) URL.revokeObjectURL(url);
+  uploadedMedia.clear();clearUpload();uploadDescription='';uploadError='';sourceMode='library';
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
   editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
@@ -238,12 +268,13 @@ async function sync() {
 }
 
 async function command(payload,label,success) {
-  if(pending) return toast('Let the current request finish first.');
+  if(pending||uploading) return toast('Let the current request finish first.');
   const id=crypto.randomUUID();
   pending={id,label,success,started:Date.now(),promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
   try {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
+      if(!signedIn||!demo||pending?.id!==id)return;
       const result=demoCommand(state,{...payload,id});
       if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);editRevisions.delete(result);}
       if(payload.action==='recover_missed' && result) location.hash='create';
@@ -256,6 +287,61 @@ async function command(payload,label,success) {
   } catch(error) {pending=null;render();toast(error.message,true);}
 }
 
+function clearUpload() {
+  if(selectedUpload&&!uploadedMedia.has(selectedUpload.id))URL.revokeObjectURL(selectedUpload.url);
+  selectedUpload=null;
+}
+
+function selectUpload(file) {
+  if(pending||uploading||!file)return;
+  try {
+    const details=fileDetails(file);
+    clearUpload();
+    selectedUpload={id:crypto.randomUUID(),file,details,url:URL.createObjectURL(file),manifest:null};
+    selectedDraft=null;selectedType=details.type;uploadError='';render();
+  } catch(error) {clearUpload();uploadError=error.message;render();}
+}
+
+async function generateUpload() {
+  if(pending||uploading)return;
+  const selection=selectedUpload;
+  const description=uploadDescription.trim();
+  if(!selection||!description||description.length>2000) {
+    uploadError='Choose an image or video and describe it in a few words.';render();return;
+  }
+  const job={controller:new AbortController(),progress:0};
+  uploading=job;uploadError='';render();
+  try {
+    if(!selection.manifest) selection.manifest=demo?{id:selection.id,...selection.details}:await uploadFile(selection.file,selection.id,progress=>{
+      job.progress=progress;
+      if(uploading===job&&document.querySelector('#upload-progress'))document.querySelector('#upload-progress').textContent=`Saving your upload… ${progress}%`;
+    },job.controller.signal);
+    if(uploading!==job||!signedIn)return;
+    uploadedMedia.set(selection.id,selection.url);
+    uploading=null;
+    await command({action:'generate_upload',type:selection.details.type,upload_id:selection.id,description,
+      ...(demo?{demo_upload:selection.manifest}:{})},'Writing your caption…','Your uploaded post is ready to review');
+  } catch(error) {
+    if(uploading!==job)return;
+    uploading=null;uploadError=error.name==='AbortError'?'Upload cancelled. You can try again.':error.message;render();
+  }
+}
+
+async function watchUpload(draft) {
+  const show=url=>modal('Your uploaded video','Review the original video attached to this post.',`<video class="uploaded-player" src="${e(url)}" controls playsinline preload="metadata"></video><a class="text-link" href="${e(url)}" download="${e(draft.source.name)}">Download video if playback is unavailable</a>`);
+  const cached=uploadedMedia.get(draft.source.upload_id);
+  if(cached){show(cached);return;}
+  modal('Your uploaded video','Loading your private video…','<p role="status">Downloading the saved video for playback.</p>');
+  const request=new AbortController();mediaRequest=request;
+  try {
+    const blob=await downloadUpload(draft.source,request.signal);
+    if(mediaRequest!==request||!signedIn)return;
+    const url=URL.createObjectURL(blob);uploadedMedia.set(draft.source.upload_id,url);show(url);
+  } catch(error) {
+    if(mediaRequest===request&&signedIn)modal('Video unavailable',e(error.message),'');
+  }
+}
+
 function draftCommand(action,extra={}) {
   const d=currentDraft();
   const snapshot=editorSnapshot?.id===d.id?editorSnapshot:{revision:d.revision,text:draftText(d)};
@@ -263,10 +349,12 @@ function draftCommand(action,extra={}) {
 }
 
 function modal(title,description,body) {
+  closeModal();
   document.querySelector('#modal-root').innerHTML=`<dialog id="studio-dialog"><div class="modal-heading"><div><h2>${title}</h2><p>${description}</p></div><button class="icon-btn" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div>${body}</dialog>`;
   document.querySelector('#studio-dialog').showModal();
+  document.querySelector('#studio-dialog').addEventListener('cancel',event=>{event.preventDefault();closeModal();});
 }
-function closeModal() { document.querySelector('#studio-dialog')?.close();document.querySelector('#modal-root').innerHTML=''; }
+function closeModal() { mediaRequest?.abort();mediaRequest=null;document.querySelector('#studio-dialog')?.close();document.querySelector('#modal-root').innerHTML=''; }
 
 function scheduleModal(id) {
   const schedule=state.schedules.find(s=>s.id===id) || {name:'',type:'image',time:'09:00',timezone:'Asia/Jerusalem',mode:'draft',days:[0,1,2,3,4],enabled:true};
@@ -275,9 +363,10 @@ function scheduleModal(id) {
 
 document.addEventListener('submit', async event=> {
   const form=event.target;
-  if (!['login-form','schedule-form','one-time-form','settings-form','prompt-form'].includes(form.id)) return;
+  if (!['login-form','schedule-form','one-time-form','settings-form','prompt-form','upload-form'].includes(form.id)) return;
   event.preventDefault();
   const data=new FormData(form);
+  if(form.id==='upload-form') {await generateUpload();return;}
   if(form.id==='login-form') {
     const submit=form.querySelector('[type=submit]');submit.disabled=true;submit.textContent='Opening your studio…';
     try {
@@ -325,6 +414,10 @@ document.addEventListener('submit', async event=> {
 });
 
 document.addEventListener('input',event=> {
+  if(event.target.id==='upload-description') {
+    uploadDescription=event.target.value;
+    document.querySelector('#upload-form [type=submit]').disabled=Boolean(pending||uploading||!selectedUpload||!uploadDescription.trim());
+  }
   if(event.target.id==='prompt-text'&&promptSnapshot&&!pending) {
     promptSnapshot.text=event.target.value;
     promptEdits.set(promptType,{text:promptSnapshot.text,revision:promptSnapshot.revision});
@@ -343,8 +436,15 @@ document.addEventListener('input',event=> {
   }
 });
 document.addEventListener('change',event=> {
+  if(event.target.id==='media-upload')selectUpload(event.target.files[0]);
   if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;render();}
   if(event.target.id==='schedule-mode') document.querySelector('#mode-hint').textContent=event.target.value==='publish'?'This schedule publishes to Facebook without a manual review.':'The post will wait in your drafts until you choose to publish.';
+});
+
+for(const name of ['dragover','drop']) document.addEventListener(name,event=> {
+  if(!event.target.closest('.upload-dropzone'))return;
+  event.preventDefault();
+  if(name==='drop')selectUpload(event.dataTransfer.files[0]);
 });
 
 document.addEventListener('click',async event=> {
@@ -353,6 +453,8 @@ document.addEventListener('click',async event=> {
   const button=event.target.closest('[data-action]');
   if(!button||button.disabled) return;
   const action=button.dataset.action;
+  if(uploading&&!['logout','menu','cancel-upload'].includes(action))return;
+  if(action==='cancel-upload') {uploading?.controller.abort();uploading=null;uploadError='Upload cancelled. You can try again.';render();}
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
   if(action==='logout') lockStudio();
   if(action==='settings-view') {
@@ -365,7 +467,9 @@ document.addEventListener('click',async event=> {
   }
   if(action==='discard-prompt') {promptEdits.delete(promptType);render();}
   if(action==='menu') {mobileNav=!mobileNav;render();}
-  if(action==='new') {selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
+  if(action==='source-mode') {sourceMode=button.dataset.mode;uploadError='';render();}
+  if(action==='remove-upload') {clearUpload();uploadError='';render();}
+  if(action==='new') {sourceMode='library';selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}
   if(action==='open-draft') {selectedDraft=button.dataset.id;selectedType=currentDraft().type;navigate('create');}
   if(action==='generate') await command({action:'generate',type:selectedType},'Creating your draft…','Your draft is ready to review');
@@ -401,7 +505,9 @@ document.addEventListener('click',async event=> {
   if(action==='filter') {activityFilter=button.dataset.filter;render();}
   if(action==='refresh') {if(!demo){await sync();render();if(!signedIn)return;}await command({action:'refresh'},'Checking publication status…','Publication status refreshed');}
   if(action==='watch-video') {
-    const id=(state.drafts.find(d=>d.id===button.dataset.id)||currentDraft())?.source.id;
+    const draft=state.drafts.find(d=>d.id===button.dataset.id)||currentDraft();
+    if(draft?.source.upload_id){await watchUpload(draft);return;}
+    const id=draft?.source.id;
     if(/^[\w-]+$/.test(id)) modal('Your selected video','Playback uses your Google Drive access.',`<iframe class="drive-player" src="https://drive.google.com/file/d/${e(id)}/preview" title="Selected video from Google Drive" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`);
   }
 });

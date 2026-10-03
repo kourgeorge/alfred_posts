@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from studio.scheduler import TYPES, due_slot, parse_future, validate_schedule
 from studio.missed import capture_missed, find_missed, remember
 from studio.store import now_iso
+from studio.uploads import validate_description, validate_id
 
 
 def safe_error(error):
@@ -59,7 +60,7 @@ class Studio:
             self._media = self.media_factory()
         return self._media
 
-    def generate(self, post_type, draft_id, schedule_id=None):
+    def generate(self, post_type, draft_id, schedule_id=None, upload_id=None, description=None):
         if post_type not in TYPES:
             raise ValueError("Unknown post type.")
         state, _ = self.store.read()
@@ -70,7 +71,15 @@ class Studio:
             raise ValueError("You have 30 unfinished drafts. Publish or delete some before creating more.")
         used = state["posted"].get(post_type, []) + [d["source"]["key"] for d in state["drafts"]
                if d["type"] == post_type and d["status"] != "deleted"]
-        prepared = self.media.prepare(post_type, used, prompt=state.get("prompts", {}).get(post_type))
+        prompt = state.get("prompts", {}).get(post_type)
+        if upload_id:
+            validate_id(upload_id)
+            description = validate_description(description)
+            if post_type not in ("image", "video"):
+                raise ValueError("Choose a photo or video for your upload.")
+            prepared = self.media.prepare_upload(post_type, upload_id, description, prompt=prompt)
+        else:
+            prepared = self.media.prepare(post_type, used, prompt=prompt)
         draft = {"id": draft_id, "type": post_type, "status": "draft", "revision": 1,
                  "created_at": now_iso(), "schedule_id": schedule_id, **prepared}
 
@@ -91,7 +100,7 @@ class Studio:
             data = self.media.download(draft)
         except Exception:
             self.store.change(lambda s: find_draft(s, draft["id"]).update(
-                status="failed", error="Could not verify the source media. Check Drive/Forms and generate a fresh draft if it changed."))
+                status="failed", error="Could not verify the source media. Check the original file and generate a fresh draft if it changed."))
             raise
         self.store.change(lambda s: find_draft(s, draft["id"]).update(status="publishing"))
         try:
@@ -186,6 +195,10 @@ class Studio:
             return self.store.change(save_prompt)
         if action == "generate":
             return self.generate(command.get("type"), command["id"], command.get("schedule_id"))
+        if action == "generate_upload":
+            validate_id(command.get("upload_id"))
+            return self.generate(command.get("type"), command["id"], upload_id=command["upload_id"],
+                                 description=command.get("description"))
         if action == "publish":
             return self.publish(command)
         if action in ("save_draft", "schedule_draft", "cancel_draft"):

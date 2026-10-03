@@ -67,6 +67,23 @@ class GitHubStore:
             state = json.loads(base64.b64decode(raw.json()["content"]))
         return state, entry["sha"]
 
+    def read_file(self, path, limit):
+        response = self.api("GET", f"/contents/{path}", params={"ref": BRANCH})
+        if response.status_code == 404:
+            raise ValueError("The uploaded file is incomplete or unavailable. Upload it again.")
+        response.raise_for_status()
+        entry = response.json()
+        if not isinstance(entry.get("size"), int) or entry["size"] > limit:
+            raise ValueError("The uploaded file is too large.")
+        if entry.get("encoding") != "base64":
+            response = self.api("GET", f"/git/blobs/{entry['sha']}")
+            response.raise_for_status()
+            entry = response.json()
+        data = base64.b64decode(entry["content"], validate=False)
+        if len(data) > limit:
+            raise ValueError("The uploaded file is too large.")
+        return data
+
     def change(self, mutate):
         # mutate must only change state, never make external calls: it may be retried.
         for attempt in range(8):
