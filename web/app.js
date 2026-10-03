@@ -153,7 +153,9 @@ function sourcePanel() {
   return `<div class="panel source-panel"><div class="step-title"><span>01</span><h2>${e(t("Choose your source"))}</h2></div>
     <div class="source-picker" role="group" aria-label="${e(t("Post source"))}">${[['library',t("Existing resources")],['upload',t("Upload image or video")]].map(([mode,label])=>`<button type="button" data-action="source-mode" data-mode="${mode}" aria-pressed="${sourceMode===mode}" class="${sourceMode===mode?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
     ${sourceMode==='library'?`<div class="format-picker">${Object.keys(typeNames).map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}" ${blocked()}>${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:t("A photo from your Drive folder, with a fresh Hebrew caption."),video:t("A video from your Drive folder, with a caption to match."),question:t("A question and its image from Google Forms, with the original answers.")}[selectedType]}</p><button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t({image:'Generate photo draft',video:'Generate video draft',question:'Generate question draft'}[selectedType]))}</button>`:
-    `<form id="upload-form"><div class="upload-dropzone"><label for="media-upload">${e(t("Choose an image or video"))}</label><input id="media-upload" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" ${blocked()} /><p class="field-hint">${e(t("Or drop a file here. JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB."))}</p></div>
+    `<form id="upload-form"><div class="upload-dropzone"><label for="media-upload">${e(t("Choose an image or video"))}</label><input id="media-upload" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" ${blocked()} />
+    <div class="camera-options"><p class="camera-divider">${e(t("Or use your camera"))}</p><div class="camera-actions"><button type="button" class="btn secondary" data-action="capture-photo" aria-controls="camera-photo" ${blocked()}>${icon('camera')}${e(t("Take photo"))}</button><button type="button" class="btn secondary" data-action="capture-video" aria-controls="camera-video" ${blocked()}>${icon('video')}${e(t("Record video"))}</button></div><input id="camera-photo" type="file" accept="image/*" capture="environment" aria-label="${e(t("Take photo"))}" hidden ${blocked()} /><input id="camera-video" type="file" accept="video/*" capture="environment" aria-label="${e(t("Record video"))}" hidden ${blocked()} /></div>
+    <p class="field-hint">${e(t("Or drop a file here. JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB."))}</p></div>
     ${selection?`<div class="upload-selection">${selection.details.type==='image'?`<img src="${e(selection.url)}" alt="${e(t("Selected upload preview"))}" />`:`<video src="${e(selection.url)}" controls playsinline preload="metadata" aria-label="${e(t("Selected upload preview"))}"></video>`}<div><strong>${e(selection.file.name)}</strong><span>${selection.file.size<1024*1024?`${Math.ceil(selection.file.size/1024)} KB`:`${(selection.file.size/1024/1024).toFixed(1)} MB`} · ${e(typeNames[selection.details.type])}</span><button type="button" class="text-link" data-action="remove-upload" ${blocked()}>${e(t("Remove file"))}</button></div></div>`:''}
     <label for="upload-description">${e(t("Describe your image or video"))}</label><textarea id="upload-description" dir="auto" maxlength="2000" rows="3" required placeholder="${e(t("For example: Practicing parallel parking with a beginner."))}" ${blocked()}>${e(uploadDescription)}</textarea><p class="field-hint">${e(t("A few words are enough. Your description and saved writing instructions guide the caption."))}</p>
     <div id="upload-error" class="form-error" role="alert">${e(uploadError)}</div>
@@ -556,7 +558,7 @@ document.addEventListener('input',event=> {
   }
 });
 document.addEventListener('change',event=> {
-  if(event.target.id==='media-upload')selectUpload(event.target.files[0]);
+  if(['media-upload','camera-photo','camera-video'].includes(event.target.id))selectUpload(event.target.files[0]);
   if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;render();}
   if(event.target.id==='schedule-mode') document.querySelector('#mode-hint').textContent=event.target.value==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.");
 });
@@ -589,6 +591,12 @@ document.addEventListener('click',async event=> {
   if(action==='menu') setMobileNav(!mobileNav);
   if(action==='close-menu') setMobileNav(false);
   if(action==='source-mode') {sourceMode=button.dataset.mode;uploadError='';render();}
+  if(action==='capture-photo'||action==='capture-video') {
+    if(pending||uploading)return;
+    const input=document.getElementById(action==='capture-photo'?'camera-photo':'camera-video');
+    input.value='';
+    input.click();
+  }
   if(action==='remove-upload') {clearUpload();uploadError='';render();}
   if(action==='new') {sourceMode='library';selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}

@@ -1,5 +1,8 @@
 // English message keys map to Hebrew and Arabic, in that order.
 export const translations = {
+  "Or use your camera": ["או באמצעות המצלמה", "أو استخدم الكاميرا"],
+  "Take photo": ["צילום תמונה", "التقاط صورة"],
+  "Record video": ["הקלטת סרטון", "تسجيل فيديو"],
   "A clear head. A full content calendar. A little time back.": [
     "ראש שקט. לוח פרסומים מסודר. יותר זמן לעצמך.",
     "راحة بال، وجدول منشورات منظم، ووقت أكثر لك."

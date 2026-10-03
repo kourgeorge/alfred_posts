@@ -1,6 +1,7 @@
 /* Keep navigation and dialogs usable on short screens and touch devices. */
 .sidebar { overflow-y: auto; overscroll-behavior: contain; }
 .nav-scrim { display: none; }
+.camera-options { display: none; }
 html.mobile-nav-open, html:has(dialog[open]) { overflow: hidden; }
 dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
 .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -16,6 +17,15 @@ dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
 .week-event > span { font-size: 12px; line-height: 1.5; }
 .week-event strong { font-size: 14px; }
 .week-event small { font-size: 12px; line-height: 1.5; opacity: 1; }
+
+@media (any-pointer: coarse), (max-width: 650px) {
+  .camera-options { display: block; margin-top: 18px; }
+  .camera-divider { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; color: #718267; font-size: 13px; }
+  .camera-divider::before, .camera-divider::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+  .camera-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .camera-actions .btn { flex-direction: column; min-height: 76px; padding: 12px 8px; font-size: 14px; line-height: 1.5; white-space: normal; }
+  .camera-actions .icon { width: 22px; height: 22px; }
+}
 
 @media (min-width: 651px) and (max-width: 1150px) {
   .week-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 8px; }
