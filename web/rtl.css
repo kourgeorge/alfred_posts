@@ -50,6 +50,9 @@ html[lang="ar"] { font-family: Tahoma, Arial, sans-serif; }
 [dir="rtl"] .btn, [dir="rtl"] .text-link, [dir="rtl"] .filter-bar button, [dir="rtl"] .run-due-trigger { white-space: normal; line-height: 1.5; }
 [dir="rtl"] .btn { max-width: 100%; }
 [dir="rtl"] .filter-bar button { min-width: 0; }
+[dir="rtl"] .workspace { margin-left: 0; }
+[dir="rtl"] .week-day { border-left: 0; padding-left: 0; }
+[dir="rtl"] .week-day:first-child { border-right: 0; }
 [dir="rtl"] .settings-views { width: auto; max-width: 100%; }
 [dir="rtl"] .day-picker span { line-height: 1.5; }
 [dir="rtl"] .icon-directional { transform: scaleX(-1); }
@@ -65,7 +68,7 @@ html[lang="ar"] { font-family: Tahoma, Arial, sans-serif; }
   .breadcrumb { gap: 6px; font-size: 12px; }
   [dir="rtl"] .page-heading h1 { font-size: 30px; }
   [dir="rtl"] .login-copy h1 { font-size: 36px; }
-  [dir="rtl"] .week-day { grid-template-columns: 50px minmax(0, 1fr); }
+  [dir="rtl"] .week-day { grid-template-columns: 50px minmax(0, 1fr); border-right: 0; padding-right: 0; }
   [dir="rtl"] .week-event { column-gap: 6px; }
   [dir="rtl"] .section-title { flex-wrap: wrap; }
   [dir="rtl"] .settings-title { flex: 1; }
@@ -73,3 +76,50 @@ html[lang="ar"] { font-family: Tahoma, Arial, sans-serif; }
   [dir="rtl"] .modal-heading h2 { font-size: 24px; }
   [dir="rtl"] .day-picker span { font-size: 11px; }
 }
+
+/* Hebrew labels and supporting copy need more room than the compact Latin UI. */
+html[lang="he"] :is(
+  .eyebrow, .nav-label, .workspace-card span:not(.avatar),
+  .sidebar-note p, .connection-status, .timezone, .session-pill,
+  .login-types span, .login-footer, .login-note, .login-divider, .demo-caption,
+  .connection-details summary, .connection-details a, .demo-banner, .demo-banner button,
+  .workspace-footer, .stat-label, .stat-card small, .count-chip, .badge, .secret-state,
+  .draft-row-main > span, .draft-open, .upcoming-row span:not(.type-icon), .cadence-note,
+  label span, .caption-meta, .source-label, .preview-heading > span:last-child,
+  .facebook-header > div > span, .facebook-reactions, .preview-note,
+  .media-placeholder > span, .video-preview > span:not(.video-play), .inline-note,
+  .info-tag, .schedule-card-main p, .schedule-run > span:last-child,
+  .one-time-row > .muted, .run-due-item span:not(.type-icon),
+  .activity-main > span, .activity-filters button > span, .operation-row p, .operation-row > .muted,
+  .settings-save > span, .repo-name, .connection-inline, .prompt-unsaved,
+  .upload-selection span, .pending-stage, .pending-elapsed, .pending-meta a
+) { font-size: 13px; line-height: 1.6; letter-spacing: 0; }
+
+html[lang="he"] :is(
+  .btn, .text-link, .nav-link, .breadcrumb, .workspace-card strong, .sidebar-note strong,
+  label, summary, .format-option, .source-picker button, .filter-bar button, .day-picker span,
+  .login-copy > p, .login-form-wrap > p, .connection-details p, .page-heading p,
+  .section-title p, .empty-state p, .muted, .soft-note, .field-hint, .micro-note, .form-error,
+  .draft-row-main strong, .upcoming-row strong, .facebook-header strong,
+  .schedule-info strong, .schedule-info span:not(.info-tag), .schedule-card-main h3,
+  .run-due-item strong, .activity-main > strong, .activity-help, .activity-error, .operation-row strong,
+  .settings-title p, .settings-values-info strong, .settings-values-info p,
+  .security-note p, .plain-note, .connection-panel h3, .modal-heading p, .publish-summary,
+  .upload-selection strong, .pending-message
+) { font-size: 14px; line-height: 1.6; }
+
+html[lang="he"] .week-panel .section-title p,
+html[lang="he"] .week-panel .section-title .text-link { font-size: 14px; }
+html[lang="he"] .week-day-label,
+html[lang="he"] .week-day-label > span,
+html[lang="he"] .week-event > span,
+html[lang="he"] .week-event small { font-size: 14px; }
+html[lang="he"] .week-event strong { font-size: 15px; }
+html[lang="he"] :is(.preview-caption, .activity-caption) { font-size: 15px; }
+html[lang="he"] input,
+html[lang="he"] select,
+html[lang="he"] textarea,
+html[lang="he"] .settings-form .credential-textarea,
+html[lang="he"] .caption-panel #caption,
+html[lang="he"] .prompt-panel #prompt-text { font-size: 16px; }
+html[lang="he"] #toast { font-size: 14px; }

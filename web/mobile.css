@@ -8,6 +8,19 @@ dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
 .video-preview strong, .media-placeholder, .publish-summary strong,
 .schedule-card-main h3, .schedule-card-main p { overflow-wrap: anywhere; }
 
+/* Keep the calendar's supporting text readable at every screen size. */
+.week-panel .section-title p,
+.week-panel .section-title .text-link { font-size: 13px; line-height: 1.6; }
+.week-day-label { font-size: 12px; line-height: 1.5; letter-spacing: .5px; gap: 6px; }
+.week-day-label > span { font-size: 12px; }
+.week-event > span { font-size: 12px; line-height: 1.5; }
+.week-event strong { font-size: 14px; }
+.week-event small { font-size: 12px; line-height: 1.5; opacity: 1; }
+
+@media (min-width: 651px) and (max-width: 1150px) {
+  .week-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 8px; }
+}
+
 @media (pointer: coarse), (max-width: 650px) {
   /* Sixteen-pixel fields avoid automatic input zoom in iOS Safari. */
   input, select, textarea, .caption-panel #caption, .prompt-panel #prompt-text,
@@ -74,7 +87,7 @@ dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
   .draft-row-main strong, .upcoming-row strong { font-size: 13px; }
   .draft-row-main > span, .upcoming-row span:not(.type-icon), .cadence-note { font-size: 11px; }
   .draft-row .badge { font-size: 10px; }
-  .section-title .text-link, .week-panel .section-title .text-link { font-size: 12px; }
+  .section-title .text-link { font-size: 12px; }
   label, .settings-form label { font-size: 13px; }
   label span { font-size: 10px; }
   .field-hint, .settings-form .field-hint, .micro-note { font-size: 12px; }
@@ -95,17 +108,17 @@ dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
     align-items: start;
   }
   .week-day:first-child { padding-top: 0; }
-  .week-day-label { flex-direction: column; gap: 6px; margin: 4px 0; font-size: 11px; }
-  .week-day-label > span { font-size: 11px; }
+  .week-day-label { flex-direction: column; gap: 6px; margin: 4px 0; font-size: 13px; }
+  .week-day-label > span { font-size: 13px; }
   .week-event {
     grid-column: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto;
     gap: 7px 10px; padding: 12px; margin-bottom: 8px;
   }
-  .week-event > span { grid-column: 1; margin: 0; font-size: 12px; gap: 6px; }
+  .week-event > span { grid-column: 1; margin: 0; font-size: 14px; gap: 6px; }
   .week-event .icon { width: 14px; height: 14px; }
-  .week-event strong { grid-column: 1; font-size: 13px; }
-  .week-event small { grid-column: 2; grid-row: 1 / 3; align-self: center; margin: 0; font-size: 11px; opacity: 1; }
-  .week-panel .section-title p { font-size: 12px; }
+  .week-event strong { grid-column: 1; font-size: 15px; }
+  .week-event small { grid-column: 2; grid-row: 1 / 3; align-self: center; margin: 0; font-size: 13px; }
+  .week-panel .section-title p, .week-panel .section-title .text-link { font-size: 14px; }
   .schedule-info strong { font-size: 13px; }
   .schedule-info span:not(.info-tag), .schedule-card-main p { font-size: 12px; }
   .schedule-card-main h3 { font-size: 14px; }
