@@ -7,7 +7,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:5189', headless: true, screenshot: 'only-on-failure' },
   projects: [
     { name: 'chrome', use: { channel: 'chrome' } },
-    { name: 'mobile-webkit', testMatch: 'mobile.spec.js', use: { browserName: 'webkit' } },
+    { name: 'mobile-webkit', testMatch: ['mobile.spec.js', 'i18n.spec.js'], use: { browserName: 'webkit' } },
   ],
   webServer: { command: 'npm run preview -- --port 5189 --strictPort', url: 'http://127.0.0.1:5189', reuseExistingServer: false },
 });

@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import sodium from 'libsodium-wrappers';
 
 // Only a short-lived studio session is held in memory. GitHub credentials stay server-side.
@@ -17,16 +18,16 @@ export async function api(path, options = {}) {
       ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) },
   });
   const text = await result.text();
-  if (current !== generation) throw new Error('The studio was locked. Sign in again to continue.');
+  if (current !== generation) throw new Error(t("The studio was locked. Sign in again to continue."));
   let body;
   try { body = text ? JSON.parse(text) : null; }
-  catch { throw new Error('The studio connection is unavailable. Please try again shortly.'); }
+  catch { throw new Error(t("The studio connection is unavailable. Please try again shortly.")); }
   if (!result.ok) {
     if (result.status === 401 && sessionToken) {
       disconnect();
       window.dispatchEvent(new Event('studio-locked'));
     }
-    throw new Error(body?.error || 'The studio could not complete this request. Please try again.');
+    throw new Error(body?.error || t("The studio could not complete this request. Please try again."));
   }
   return body;
 }
@@ -34,13 +35,13 @@ export async function api(path, options = {}) {
 export async function connect(endpoint, password) {
   disconnect();
   let url;
-  try { url = new URL(endpoint); } catch { throw new Error('The studio connection has not been configured.'); }
+  try { url = new URL(endpoint); } catch { throw new Error(t("The studio connection has not been configured.")); }
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash)
-    throw new Error('The studio needs a secure connection.');
+    throw new Error(t("The studio needs a secure connection."));
   gateway = url.href.replace(/\/$/, '');
   try {
     const info = await api('/login', { method: 'POST', body: JSON.stringify({ password }) });
-    if (!info?.token || !/^[\w.-]+\/[\w.-]+$/.test(info.repository)) throw new Error('The studio connection returned an invalid session.');
+    if (!info?.token || !/^[\w.-]+\/[\w.-]+$/.test(info.repository)) throw new Error(t("The studio connection returned an invalid session."));
     sessionToken = info.token;
     repository = info.repository;
     return info;
@@ -71,7 +72,7 @@ export async function saveSecrets(values) {
       }) });
       saved.push(name);
     } catch (error) {
-      throw new Error(`${saved.length ? `Saved ${saved.join(', ')}. ` : ''}${name} was not saved. ${error.message}`);
+      throw new Error(`${saved.length ? t('Saved {names}.',{names:saved.join(', ')})+' ' : ''}${t('{name} was not saved. {error}',{name,error:t(error.message)})}`);
     }
   }
   return saved;

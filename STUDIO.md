@@ -18,6 +18,15 @@ access to that repository restricted to people you trust to run the automation.
 
 ## Open the studio
 
+Use the language selector on the sign-in page or in the top bar to choose
+**English**, **עברית**, or **العربية**. Hebrew and Arabic use a right-to-left layout,
+with translated controls, dialogs, feedback, and dates. The initial language follows
+the browser when supported. A selected language is stored as the public
+`alfred-ui-language` preference; authentication stays in memory only.
+Switching languages preserves in-progress edits and selected uploads. It changes
+the interface language; captions, saved writing instructions, filenames, credentials,
+and scheduling timezones keep their values.
+
 Open the website, enter your studio password, and select **Open studio**. No GitHub
 access key or GitHub sign-in is needed in the dashboard. The password is configured
 as the gateway's `STUDIO_PASSWORD` runtime secret; it is never embedded in the public

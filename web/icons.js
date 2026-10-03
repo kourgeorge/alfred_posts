@@ -28,4 +28,4 @@ const paths = {
   leaf: '<path d="M5 19c-5-7 2-16 16-16 0 14-9 21-16 16Zm0 0L16 8"/>',
   github: '<path d="M9 19c-4 1-4-2-6-2m12 5v-4c0-1 .3-2 1-2 3-.4 5-2 5-5a5 5 0 0 0-1-3c.4-1 .4-3-.1-4-2 0-3 1-4 1a14 14 0 0 0-8 0C7 4 6 3 4 4c-.5 1-.5 3 0 4a5 5 0 0 0-1 3c0 3 2 5 5 5 1 0 1 1 1 2v4"/>',
 };
-export const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.grid}</svg>`;
+export const icon = (name, cls = '') => `<svg class="icon ${['arrow','chevron','logout'].includes(name)?'icon-directional ':''}${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.grid}</svg>`;

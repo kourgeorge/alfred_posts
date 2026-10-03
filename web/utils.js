@@ -1,8 +1,9 @@
+import { t, locale } from './i18n.js';
 export const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-export const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-export const typeNames = {image: 'Photo', video: 'Video', question: 'Question'};
+export const dayNames = () => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day=>t(day));
+export const typeNames = {get image(){return t('Photo');},get video(){return t('Video');},get question(){return t('Question');}};
 export const editable = draft => ['draft', 'scheduled', 'failed'].includes(draft?.status);
-export const formatDate = value => value ? new Intl.DateTimeFormat('en', {month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Jerusalem'}).format(new Date(value)) : '—';
+export const formatDate = value => value ? new Intl.DateTimeFormat(locale(), {month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Jerusalem'}).format(new Date(value)) : '—';
 export function zonedParts(date, timezone) {
   return Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone: timezone, year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date).map(p => [p.type,p.value]));
 }
@@ -26,7 +27,7 @@ export function inZone(value, zone) {
     if (`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}` === value) result = earlier;
   }
   const p = zonedParts(new Date(result),zone);
-  if (`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}` !== value) throw new Error('This local time does not exist because of a clock change. Choose another time.');
+  if (`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}` !== value) throw new Error(t("This local time does not exist because of a clock change. Choose another time."));
   return new Date(result);
 }
 export function nextOccurrence(schedule, now = new Date()) {

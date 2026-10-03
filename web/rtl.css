@@ -1,0 +1,74 @@
+/* Mirror directional spacing and navigation in the existing layouts. */
+[dir="rtl"] .count-chip{margin-right:7px}[dir="rtl"] .orbit{left:-490px}[dir="rtl"] .orbit-two{left:-440px}[dir="rtl"] .sidebar{border-left:1px solid #e1e6d9;inset:0 0 0 auto}[dir="rtl"] .workspace-card>.icon{margin-right:auto}[dir="rtl"] .nav-link.active:before{right:-17px;border-radius:2px 0 0 2px}[dir="rtl"] .nav-shortcut{margin-right:auto}[dir="rtl"] .connection-status>.icon{margin-right:auto}[dir="rtl"] .workspace{margin-right:224px}[dir="rtl"] .upcoming-row>.icon{margin-right:auto}[dir="rtl"] .draft-row{text-align:right}[dir="rtl"] .draft-open{margin-right:22px}[dir="rtl"] select{padding-left:30px}[dir="rtl"] .step-title .badge{margin-right:auto}[dir="rtl"] .selected-dot{left:8px}[dir="rtl"] .source-label a{margin-right:auto}[dir="rtl"] .facebook-more{margin-right:auto}[dir="rtl"] .info-tag{margin-right:auto}[dir="rtl"] .week-day{border-right:1px solid #e9eee1;padding-right:9px}[dir="rtl"] .week-day:first-child{padding-right:0}[dir="rtl"] .week-event{text-align:right}[dir="rtl"] .switch span{right:3px}[dir="rtl"] .switch.on span{transform:translateX(-14px)}
+[dir="rtl"] #toast{right:50%;transform:translate(50%,20px)}[dir="rtl"] #toast.visible{transform:translate(50%,0)}[dir="rtl"] .modal-heading>.icon-btn{margin:-8px 0 0 -9px}[dir="rtl"] .day-picker input{right:15px}[dir="rtl"] .modal-actions>.danger{margin-left:auto}
+@media(max-width:1150px){[dir="rtl"] .sidebar{padding-right:13px;padding-left:13px}[dir="rtl"] .workspace{margin-right:200px}[dir="rtl"] .week-day{padding-right:5px}}
+@media(max-width:900px){[dir="rtl"] .workspace{margin-right:183px}[dir="rtl"] .sidebar .brand{padding-right:7px}[dir="rtl"] .nav-link{padding-right:11px}[dir="rtl"] .activity-row>.badge{margin-right:54px}[dir="rtl"] .activity-row>.icon-btn{margin-right:auto}}
+@media(max-width:650px){[dir="rtl"] .login-copy h1 em{margin-right:4px}[dir="rtl"] .sidebar{transform:translateX(100%)}[dir="rtl"] .workspace{margin-right:0}[dir="rtl"] .mobile-menu{margin-right:-8px}[dir="rtl"] .demo-banner button{text-align:left}[dir="rtl"] .switch.on span{transform:translateX(-13px)}[dir="rtl"] .one-time-row>.muted{margin-right:41px}[dir="rtl"] .activity-row>.badge{margin-right:43px}[dir="rtl"] .operation-row>.muted{margin-right:18px}}@media(max-width:650px){[dir="rtl"] .run-due-trigger{margin-right:28px}}[dir="rtl"] .activity-filters button>span{margin-right:5px}@media(max-width:650px){[dir="rtl"] .activity-post-header>.badge{margin-right:45px}}[dir="rtl"] .upload-dropzone input::file-selector-button{margin-left:10px}
+[dir="rtl"] .pending-banner{border-right:4px solid #66884b}
+@media(max-width:650px){[dir="rtl"] .pending-meta{margin-right:31px}}
+
+@media (pointer: coarse), (max-width: 650px) {
+  [dir="rtl"] .schedule-card-actions .switch::before {
+    right: 5px;
+  }
+  [dir="rtl"] .schedule-card-actions .switch span { right: 8px; }
+  [dir="rtl"] .schedule-card-actions .switch.on span { transform: translateX(-14px); }
+}
+
+@media (max-width: 650px) {
+  [dir="rtl"] .nav-open .sidebar { transform: translateX(0); }
+  [dir="rtl"] .topbar {
+    padding-right: max(20px, env(safe-area-inset-left));
+    padding-left: max(20px, env(safe-area-inset-right));
+  }
+  [dir="rtl"] main,[dir="rtl"] .demo-banner,[dir="rtl"] .login-panel,[dir="rtl"] .login-story {
+    padding-right: max(20px, env(safe-area-inset-left));
+    padding-left: max(20px, env(safe-area-inset-right));
+  }
+}
+
+@media (max-height: 500px) {
+  [dir="rtl"] .topbar,[dir="rtl"] main {
+    padding-right: max(22px, env(safe-area-inset-left));
+    padding-left: max(22px, env(safe-area-inset-right));
+  }
+}
+
+/* Language controls share the same placement in every language. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.language-picker { display: block; margin: 0; flex-shrink: 0; }
+.language-picker select { width: 112px; min-height: 44px; padding: 9px 24px 9px 10px; font-size: 14px; background: #fff; direction: ltr; }
+.login-language { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.topbar { gap: 12px; }
+.topbar-end { gap: 12px; }
+.breadcrumb { min-width: 0; }
+.breadcrumb strong { overflow-wrap: anywhere; }
+[dir="rtl"] { font-family: Arial, sans-serif; }
+html[lang="ar"] { font-family: Tahoma, Arial, sans-serif; }
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] .login-form-wrap h2, [dir="rtl"] .modal-heading h2, [dir="rtl"] .security-note h3 { font-family: inherit; letter-spacing: 0; line-height: 1.4; }
+[dir="rtl"] .eyebrow, [dir="rtl"] .nav-label, [dir="rtl"] .pending-stage, [dir="rtl"] .week-day-label { letter-spacing: 0; }
+[dir="rtl"] .btn, [dir="rtl"] .text-link, [dir="rtl"] .filter-bar button, [dir="rtl"] .run-due-trigger { white-space: normal; line-height: 1.5; }
+[dir="rtl"] .btn { max-width: 100%; }
+[dir="rtl"] .filter-bar button { min-width: 0; }
+[dir="rtl"] .settings-views { width: auto; max-width: 100%; }
+[dir="rtl"] .day-picker span { line-height: 1.5; }
+[dir="rtl"] .icon-directional { transform: scaleX(-1); }
+[dir="rtl"] .brand, .facebook-mini, .service-symbol, .repo-name { direction: ltr; unicode-bidi: isolate; }
+#settings-form input, #google-key, #studio-password, #schedule-zone, input[type="time"], input[type="datetime-local"] { direction: ltr; text-align: left; }
+#settings-form input::placeholder, #google-key::placeholder, #studio-password::placeholder { text-align: match-parent; }
+.source-label > span, .upload-selection strong, .publish-summary strong { unicode-bidi: plaintext; }
+@media (max-width: 650px) {
+  .topbar .session-pill, .topbar .small-avatar { display: none; }
+  .language-picker select { width: 105px; font-size: 16px; }
+  .topbar-end { gap: 0; }
+  .breadcrumb { gap: 6px; font-size: 12px; }
+  [dir="rtl"] .page-heading h1 { font-size: 30px; }
+  [dir="rtl"] .login-copy h1 { font-size: 36px; }
+  [dir="rtl"] .week-day { grid-template-columns: 50px minmax(0, 1fr); }
+  [dir="rtl"] .week-event { column-gap: 6px; }
+  [dir="rtl"] .section-title { flex-wrap: wrap; }
+  [dir="rtl"] .settings-title { flex: 1; }
+  [dir="rtl"] .prompt-tools { flex-wrap: wrap; }
+  [dir="rtl"] .modal-heading h2 { font-size: 24px; }
+  [dir="rtl"] .day-picker span { font-size: 11px; }
+}
