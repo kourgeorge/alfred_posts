@@ -268,6 +268,50 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(self.media.posts, [])
         self.assertFalse(any(op["action"] == "missed_schedule" for op in self.store.state["operations"]))
 
+    def test_manual_check_runs_due_saved_and_recurring_posts_once(self):
+        when = datetime(2026, 10, 3, 10, 19, tzinfo=timezone.utc)
+        self.saturday_schedule()
+        saved = self.generate()
+        self.store.state["drafts"][0].update(status="scheduled", scheduled_at="2026-10-03T07:00:00+00:00", text="Reviewed caption")
+        future = self.generate(request_id="future-post")
+        self.store.state["drafts"][0].update(status="scheduled", scheduled_at="2026-10-04T07:00:00+00:00")
+        self.generate(request_id="unscheduled-draft")
+        with patch("studio.service.datetime") as clock:
+            clock.now.return_value = when
+            clock.fromisoformat.side_effect = datetime.fromisoformat
+            self.app.command({"id":"manual-run-001", "action":"run_due"})
+            self.app.command({"id":"manual-run-001", "action":"run_due"})
+            self.app.command({"id":"manual-run-002", "action":"run_due"})
+            self.app.tick(when)
+        self.assertEqual(len(self.media.posts), 2)
+        self.assertEqual(next(d for d, _ in self.media.posts if d["id"] == saved["id"])["text"], "Reviewed caption")
+        self.assertEqual(next(d for d in self.store.state["drafts"] if d["id"] == future["id"])["status"], "scheduled")
+        self.assertEqual(next(d for d in self.store.state["drafts"] if d["id"] == "unscheduled-draft")["status"], "draft")
+        operation = next(op for op in self.store.state["operations"] if op["id"] == "manual-run-001")
+        self.assertEqual(operation["status"], "complete")
+
+    def test_manual_check_respects_draft_only_paused_and_expired_schedules(self):
+        when = datetime(2026, 10, 3, 10, 19, tzinfo=timezone.utc)
+        self.saturday_schedule(mode="draft")
+        original = self.store.state["schedules"][0]
+        self.store.state["schedules"] += [
+            {**original, "id":"paused-run", "enabled":False},
+            {**original, "id":"expired-run", "days":[4], "starts_at":"2026-10-01T00:00:00+00:00"},
+        ]
+        with patch("studio.service.datetime") as clock:
+            clock.now.return_value = when
+            self.app.command({"id":"manual-modes-001", "action":"run_due", "force":True})
+        self.assertEqual(self.media.posts, [])
+        self.assertEqual(len(self.store.state["drafts"]), 1)
+        self.assertEqual(self.store.state["drafts"][0]["status"], "draft")
+        self.assertTrue(any(op["action"] == "missed_schedule" for op in self.store.state["operations"]))
+
+    def test_manual_check_failure_is_recorded(self):
+        with patch.object(self.app, "tick", side_effect=RuntimeError("Unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.app.command({"id":"manual-failed-001", "action":"run_due"})
+        self.assertEqual(self.store.state["operations"][0]["status"], "failed")
+
 
 class ScheduleTest(unittest.TestCase):
     def setUp(self):

@@ -58,6 +58,9 @@ test('only fixed repository endpoints and approved service secrets are available
     const prompt = {id:'prompt-save-123',action:'save_prompt',type:'question',prompt:'Write a short intro. שלום',revision:0};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:prompt}), env)).status, 204);
     assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), prompt);
+    const runDue = {id:'run-due-123',action:'run_due'};
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:runDue}), env)).status, 204);
+    assert.deepEqual(JSON.parse(calls.at(-1).options.body), {ref:'main',inputs:{command:JSON.stringify(runDue)}});
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);

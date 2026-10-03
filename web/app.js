@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
-import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, inZone, zonedParts, sourceUrl } from './utils.js';
+import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, dueTasks, inZone, zonedParts, sourceUrl } from './utils.js';
 
 const root = document.querySelector('#app');
 let config = {gateway: ''};
@@ -129,7 +129,7 @@ function mediaPreview(draft) {
 function schedulePage() {
   const queued = state.drafts.filter(d=>d.status==='scheduled');
   return `${heading('YOUR PUBLISHING RHYTHM','A little planning. A lot of freedom.','Set it up once. Keep showing up for your audience.',`<button class="btn primary" data-action="new-schedule" ${blocked()}>${icon('plus')} Add a schedule</button>`)}
-    <div class="schedule-info">${icon('clock')}<div><strong>Delayed posts stay on the schedule.</strong><span>Checks are requested every 30 minutes, but GitHub can start them late. The latest recurring post catches up within 24 hours; older missed runs need your attention.</span><span>${state.scheduler?.last_finished_at?`Last completed check: ${e(formatDate(state.scheduler.last_finished_at))}`:'No completed schedule check recorded yet.'}</span></div><span class="info-tag">Asia/Jerusalem</span></div>
+    <div class="schedule-info">${icon('clock')}<div><strong>Delayed posts stay on the schedule.</strong><span>Checks are requested every 30 minutes, but GitHub can start them late. The latest recurring post catches up within 24 hours; older missed runs need your attention.</span><span>${state.scheduler?.last_finished_at?`Last completed check: ${e(formatDate(state.scheduler.last_finished_at))}`:'No completed schedule check recorded yet.'}</span></div><button class="btn secondary run-due-trigger" data-action="run-due" ${blocked()}>${icon('send')} Run due tasks now</button></div>
     <section class="panel week-panel"><div class="section-title"><h2>Your weekly rhythm</h2><span class="muted">Recurring schedules</span></div><div class="week-grid">${dayNames.map((day,i)=>`<div class="week-day"><div class="week-day-label">${day}<span>${state.schedules.filter(s=>s.enabled&&s.days.includes(i)).length||'—'}</span></div>${state.schedules.filter(s=>s.enabled&&s.days.includes(i)).map(s=>`<button class="week-event ${e(s.type)}" ${blocked()} data-action="edit-schedule" data-id="${e(s.id)}"><span>${icon(s.type)}${e(s.time)}</span><strong>${e(s.name)}</strong><small>${s.mode==='draft'?'Draft':'Publish'}</small></button>`).join('')}</div>`).join('')}</div></section>
     <section class="schedules-list"><div class="section-title"><h2>Recurring schedules <span class="count-chip">${state.schedules.length}</span></h2></div>${state.schedules.length?state.schedules.map(scheduleCard).join(''):empty('calendar','Make room for consistency','Add your first schedule. You can prepare drafts or publish automatically.')}</section>
     ${queued.length?`<section class="panel"><div class="section-title"><h2>One-time posts</h2><span class="muted">Ready for their moment</span></div>${queued.sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(d=>`<div class="one-time-row">${draftRow(d)}<span class="muted">${e(formatDate(d.scheduled_at))}</span></div>`).join('')}</section>`:''}`;
@@ -368,6 +368,13 @@ document.addEventListener('click',async event=> {
     modal('Give this post its moment.','Choose a time in Israel. Your post will publish at the next schedule check after that time.',`<form id="one-time-form"><label for="post-date">Date & time · Asia/Jerusalem</label><input id="post-date" name="date" type="datetime-local" value="${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}" required /><div id="one-time-error" class="form-error" role="alert"></div><div class="modal-actions"><button class="btn secondary" type="button" data-action="close-modal">Cancel</button><button class="btn primary" type="submit">${icon('calendar')} Schedule post</button></div></form>`);
   }
   if(action==='cancel-draft') await command(draftCommand('cancel_draft'),'Updating your draft…','Post moved back to drafts');
+  if(action==='run-due') {
+    if(!demo){await sync();if(!signedIn)return;}
+    const tasks=dueTasks(state);
+    modal('Run due tasks now?',demo?'This is a demo. No post will be sent to Facebook.':'Due posts set to publish will be sent to Facebook. Draft-only tasks will prepare a draft for review.',
+      `${tasks.length?`<div class="run-due-list">${tasks.map(task=>`<div class="run-due-item">${typeIcon(task.type)}<div><strong>${e(task.name)}</strong><span>${e(formatDate(task.date))} · ${task.mode==='draft'?'Prepare a draft':task.kind==='draft'?'Publish saved post':'Generate and publish'}</span></div></div>`).join('')}</div>`:'<p class="field-hint">No tasks are currently due. You can still request a fresh check.</p>'}<p class="field-hint">The check uses your saved schedules when it starts. Paused, future, and expired recurring tasks are not forced to run. This usually takes about a minute.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Cancel</button><button class="btn primary" data-action="confirm-run-due">${icon('send')} ${demo?'Simulate due tasks':'Run due tasks'}</button></div>`);
+  }
+  if(action==='confirm-run-due') {closeModal();await command({action:'run_due'},'Running due tasks…','Schedule check finished. Review the results in Schedule and Activity.');}
   if(action==='new-schedule') scheduleModal();
   if(action==='edit-schedule') scheduleModal(button.dataset.id);
   if(action==='toggle-schedule') {const s=state.schedules.find(s=>s.id===button.dataset.id);await command({action:'toggle_schedule',schedule_id:s.id,enabled:!s.enabled},'Updating your schedule…',s.enabled?'Schedule paused':'Schedule resumed');}

@@ -105,6 +105,15 @@ The 30-minute interval is a request to GitHub, not a promise of on-time executio
 The catch-up fix uses the existing private workflow without another hosting service.
 Increasing cron frequency alone cannot guarantee exact-minute publishing.
 
+To start a check yourself, open **Schedule → Run due tasks now**, review the list,
+and select **Run due tasks**. This dispatches the GitHub worker immediately instead
+of waiting for cron; GitHub still needs to start and finish the job. Due one-time
+posts publish their saved captions, recurring publish tasks generate and publish,
+and draft-only tasks prepare drafts. Future, paused, expired, and already-claimed
+recurring slots are not forced to run. The button stays disabled while the request
+is pending, then the dashboard shows completion and updated results. Posting
+errors remain visible in Schedule and Activity. Demo mode only simulates the check.
+
 The default timezone is `Asia/Jerusalem`; daylight saving is handled by IANA timezone
 rules. The calendar displays each recurring task's chosen local time. Individual
 post dates in the dashboard are shown in Israel time.

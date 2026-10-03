@@ -73,6 +73,17 @@ export function scheduleRun(schedule, drafts = [], now = new Date()) {
   const age = now - latest.date;
   return { ...latest, status: age > 24 * 3600000 ? 'missed' : age > 30 * 60000 ? 'overdue' : 'waiting' };
 }
+
+export function dueTasks(state, now = new Date()) {
+  const posts = state.drafts.filter(d => d.status === 'scheduled' && new Date(d.scheduled_at) <= now)
+    .map(d => ({kind:'draft', id:d.id, name:d.source.name, type:d.type, mode:'publish', date:new Date(d.scheduled_at)}));
+  const schedules = state.schedules.flatMap(s => {
+    const run = scheduleRun(s, state.drafts, now);
+    return run && ['waiting','overdue'].includes(run.status) && run.slot > (s.last_missed_slot || '')
+      ? [{kind:'schedule', id:s.id, name:s.name, type:s.type, mode:s.mode, date:run.date, slot:run.slot}] : [];
+  });
+  return [...posts, ...schedules].sort((a,b) => a.date - b.date);
+}
 export const sourceUrl = value => {
   try { const u=new URL(value);return u.protocol==='https:' && ['drive.google.com','docs.google.com','www.facebook.com','facebook.com','github.com'].includes(u.hostname) ? u.href : ''; }
   catch { return ''; }

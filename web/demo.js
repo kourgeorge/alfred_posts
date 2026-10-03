@@ -1,3 +1,5 @@
+import { dueTasks } from './utils.js';
+
 export function demoState() {
   const ago = days => new Date(Date.now() - days * 86400000).toISOString();
   const photo = { id: 'demo-photo', type: 'image', status: 'draft', revision: 1, created_at: ago(0),
@@ -22,6 +24,25 @@ export function demoCommand(state, command) {
   const draft = state.drafts.find(d => d.id === command.draft_id);
   let result;
   switch (command.action) {
+    case 'run_due': {
+      const now = new Date().toISOString();
+      for (const task of dueTasks(state)) {
+        if (task.kind === 'draft') {
+          const item = state.drafts.find(d => d.id === task.id);
+          Object.assign(item, {status:'published', published_at:now, scheduled_at:null, revision:item.revision+1});
+        } else {
+          const schedule = state.schedules.find(s => s.id === task.id);
+          const sample = demoState().drafts.find(d => d.type === task.type);
+          const id = `demo-run-${schedule.id}-${task.slot}`;
+          const status = task.mode === 'publish' ? 'published' : 'draft';
+          state.drafts.unshift({...sample, id, schedule_id:schedule.id, created_at:now, status,
+            ...(status === 'published' ? {published_at:now} : {})});
+          Object.assign(schedule, {last_slot:task.slot, last_run:now, last_draft_id:id, last_status:status, last_error:null});
+        }
+      }
+      state.scheduler = {last_started_at:now, last_finished_at:now};
+      break;
+    }
     case 'save_prompt': {
       state.prompts ??= {}; state.prompt_revisions ??= {};
       if (command.revision !== (state.prompt_revisions[command.type] ?? 0)) throw new Error('This prompt changed. Discard your changes before editing again.');

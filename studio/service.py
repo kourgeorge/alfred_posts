@@ -141,6 +141,11 @@ class Studio:
 
     def execute(self, command):
         action = command.get("action")
+        if action == "run_due":
+            # Use the same eligibility checks and reservations as the cron worker.
+            # The request receipt tracks completion; posting results stay on drafts.
+            self.tick()
+            return None
         if action == "save_prompt":
             kind, prompt = command.get("type"), command.get("prompt")
             if kind not in TYPES:

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import sodium from 'libsodium-wrappers';
-import { demoState } from '../../web/demo.js';
+import { demoState, demoCommand } from '../../web/demo.js';
 import { inZone, nextOccurrence, scheduleRun } from '../../web/utils.js';
 import defaultPrompts from '../../prompts.json' with { type: 'json' };
 
@@ -145,6 +145,72 @@ test('pending recurring slots stay visible until claimed or expired',()=> {
   expect(scheduleRun(schedule,[],new Date('2026-10-04T07:10:01Z')).status).toBe('missed');
   expect(scheduleRun({...schedule,enabled:false},[],new Date('2026-10-03T10:19:00Z'))).toBeNull();
   expect(scheduleRun({...schedule,starts_at:'2026-10-03T08:00:00Z'},[],new Date('2026-10-03T10:19:00Z'))).toBeNull();
+});
+
+test('manual schedule check reviews due work, dispatches once and reports completion',async({page})=> {
+  const remote=demoState();
+  remote.schedules=[{id:'due-photo',name:'Due recurring photo',type:'image',mode:'publish',enabled:true,
+    timezone:'Asia/Jerusalem',time:'10:10',days:[5],starts_at:'2026-10-03T07:06:46Z'}];
+  remote.drafts[0].status='scheduled';remote.drafts[0].scheduled_at='2026-10-03T07:00:00Z';
+  remote.drafts[0].text='My prepared caption';
+  remote.drafts[1].status='scheduled';remote.drafts[1].scheduled_at='2099-10-03T07:00:00Z';
+  const sent=[];
+  await page.clock.install({time:new Date('2026-10-03T10:19:00Z')});
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+    const request=route.request();const path=new URL(request.url()).pathname;
+    if(path==='/api/commands') {
+      sent.push(request.postDataJSON());
+      return route.fulfill({status:204,body:''});
+    }
+    const body=path==='/api/login'?{token:'test-session',repository:'kourgeorge/alfred_posts_automation'}:remote;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/#schedule');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await page.getByRole('button',{name:'Run due tasks now',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog).toContainText('Due recurring photo');
+  await expect(dialog).toContainText('Publish saved post');
+  await expect(dialog).not.toContainText(remote.drafts[1].source.name);
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  expect(sent).toHaveLength(0);
+  await page.getByRole('button',{name:'Run due tasks now',exact:true}).click();
+  await dialog.getByRole('button',{name:'Run due tasks',exact:true}).click();
+  await expect(page.locator('.pending-banner')).toContainText('Running due tasks');
+  await expect(page.getByRole('button',{name:'Run due tasks now',exact:true})).toBeDisabled();
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toEqual({action:'run_due',id:expect.any(String)});
+  remote.drafts[0].status='published';
+  remote.scheduler={last_finished_at:'2026-10-03T10:20:00Z'};
+  remote.operations.unshift({id:sent[0].id,action:'run_due',status:'complete'});
+  await page.clock.fastForward(9000);
+  await expect(page.locator('.pending-banner')).toHaveCount(0);
+  await expect(page.locator('#toast')).toContainText('Schedule check finished');
+  await expect(page.getByRole('button',{name:'Run due tasks now',exact:true})).toBeEnabled();
+  expect(remote.drafts[0].text).toBe('My prepared caption');
+});
+
+test('manual schedule check simulates safely in the demo',async({page})=> {
+  await demo(page);
+  await page.getByRole('link',{name:'Schedule',exact:true}).click();
+  await page.getByRole('button',{name:'Run due tasks now',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('No post will be sent to Facebook');
+  await page.getByRole('button',{name:'Simulate due tasks',exact:true}).click();
+  await expect(page.locator('#toast')).toContainText('Schedule check finished');
+  await expect(page.locator('.schedule-info')).toContainText('Last completed check:');
+});
+
+test('demo manual check preserves saved captions and skips future posts',()=> {
+  const state=demoState();
+  state.schedules=[];
+  Object.assign(state.drafts[0],{status:'scheduled',scheduled_at:'2020-01-01T00:00:00Z',text:'Reviewed caption'});
+  Object.assign(state.drafts[1],{status:'scheduled',scheduled_at:'2099-01-01T00:00:00Z'});
+  demoCommand(state,{action:'run_due',id:'demo-run-001'});
+  demoCommand(state,{action:'run_due',id:'demo-run-002'});
+  expect(state.drafts[0]).toMatchObject({status:'published',text:'Reviewed caption',revision:2});
+  expect(state.drafts[1].status).toBe('scheduled');
+  expect(state.drafts[2].status).toBe('draft');
 });
 
 test('overdue and missed schedule status is visible without a worker update',async({page})=> {
