@@ -202,6 +202,65 @@ test('manual schedule check simulates safely in the demo',async({page})=> {
   await expect(page.locator('.schedule-info')).toContainText('Last completed check:');
 });
 
+for (const width of [1440,390]) test(`GitHub waiting and running feedback stays visible at ${width}px`,async({page})=> {
+  const remote=demoState();
+  const sent=[];
+  let accept;
+  const acceptance=new Promise(resolve=>{accept=resolve;});
+  await page.setViewportSize({width,height:850});
+  await page.clock.install();
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/commands') {
+      sent.push(route.request().postDataJSON());
+      await acceptance;
+      return route.fulfill({status:204,body:''});
+    }
+    const body=path==='/api/login'?{token:'test-session',repository:'kourgeorge/alfred_posts_automation'}:remote;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/#create');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await page.locator('#draft-select').selectOption('demo-photo');
+  const caption='Keep my reviewed caption while GitHub is busy. שלום';
+  await page.locator('#caption').fill(caption);
+  await page.getByRole('button',{name:'Save draft',exact:true}).click();
+  await expect(page.locator('.pending-stage')).toHaveText('Sending request');
+  accept();
+  await expect(page.locator('.pending-stage')).toHaveText('Waiting for GitHub');
+  await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeDisabled();
+  await page.locator('#caption').evaluate(el=>el.dataset.preserved='yes');
+  await page.clock.fastForward(181000);
+  await expect(page.locator('.pending-message')).toContainText('taking longer to start');
+  await expect(page.locator('.pending-elapsed')).toContainText('Elapsed 3m');
+  await expect(page.locator('#caption')).toHaveValue(caption);
+  await expect(page.locator('#caption')).toHaveAttribute('data-preserved','yes');
+  await expect(page.getByRole('link',{name:'View on GitHub'})).toHaveAttribute('href',/\/actions\/workflows\/studio.yml$/);
+  await page.evaluate(()=>window.scrollTo(0,450));
+  const banner=await page.locator('.pending-banner').boundingBox();
+  expect(banner.y).toBeGreaterThanOrEqual(width<650?62:0);
+  expect(banner.y+banner.height).toBeLessThan(850);
+  const link=await page.getByRole('link',{name:'View on GitHub'}).boundingBox();
+  expect(link.x+link.width).toBeLessThan(banner.x+banner.width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  await page.screenshot({path:`test-results/pending-${width}.png`});
+  remote.operations.unshift({id:sent[0].id,action:'save_draft',status:'running'});
+  await page.clock.fastForward(9000);
+  await expect(page.locator('.pending-stage')).toHaveText('In progress');
+  await expect(page.locator('.pending-message')).toContainText('Still running');
+  expect(sent).toHaveLength(1);
+  expect(sent[0].text).toBe(caption);
+  const failed=width===390;
+  Object.assign(remote.operations[0],{status:failed?'failed':'complete',error:'The draft changed in another session.',result:remote.drafts[0].id});
+  if(!failed) Object.assign(remote.drafts[0],{text:caption,revision:2});
+  await page.clock.fastForward(9000);
+  await expect(page.locator('.pending-banner')).toHaveCount(0);
+  await expect(page.locator('#toast')).toContainText(failed?'changed in another session':'Draft saved');
+  await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeEnabled();
+  await expect(page.locator('#caption')).toHaveValue(caption);
+});
+
 test('demo manual check preserves saved captions and skips future posts',()=> {
   const state=demoState();
   state.schedules=[];

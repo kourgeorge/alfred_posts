@@ -150,6 +150,11 @@ recurring slots are not forced to run. The button stays disabled while the reque
 is pending, then the dashboard shows completion and updated results. Posting
 errors remain visible in Schedule and Activity. Demo mode only simulates the check.
 
+While a request is pending, a notice stays visible as you scroll. It shows whether
+the request is being sent, waiting for GitHub, or running, plus elapsed time and a
+link to GitHub Actions. Longer waits get an updated message automatically. Keep
+the tab open to receive the result; the elapsed time is not a completion estimate.
+
 **Activity → Needs attention** includes overdue tasks, missed runs, failures, and
 recovered drafts awaiting review. Upcoming posts and tasks waiting within the normal
 30-minute check interval appear under **Scheduled**. One-time posts also become

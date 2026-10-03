@@ -62,6 +62,34 @@ function login(error = '') {
     </div></section></div>`;
 }
 
+function pendingDetails() {
+  const seconds = Math.max(0, Math.floor((Date.now() - pending.started) / 1000));
+  const slow = seconds >= 180;
+  const phase = pending.phase;
+  const stage = demo ? 'Demo in progress' : ({sending:'Sending request',queued:'Waiting for GitHub',running:'In progress'}[phase]);
+  const message = demo ? 'Simulating your request. No real post will be sent.'
+    : phase === 'sending' ? 'Sending your request to GitHub. Please keep this tab open.'
+    : phase === 'running' ? (slow ? 'Still running. Some requests take longer; the result will appear here automatically.' : 'Your request has started. The result will appear here automatically.')
+    : slow ? 'GitHub is taking longer to start. Your request is already sent; no need to submit it again.'
+    : 'GitHub may take a few minutes to start. Keep this tab open; it updates automatically.';
+  return {stage, message, elapsed: `Elapsed ${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2,'0')}s`};
+}
+
+function pendingBanner() {
+  if (!pending) return '';
+  const info = pendingDetails();
+  return `<aside class="pending-banner" aria-label="Request progress"><span class="spinner" aria-hidden="true"></span><div class="pending-copy" role="status" aria-live="polite" aria-atomic="true"><span class="pending-stage">${e(info.stage)}</span><strong>${e(pending.label)}</strong><p class="pending-message">${e(info.message)}</p></div><div class="pending-meta"><span class="pending-elapsed" role="timer" aria-live="off">${e(info.elapsed)}</span>${demo?'':`<a href="https://github.com/${e(github.repoName())}/actions/workflows/studio.yml" target="_blank" rel="noopener noreferrer">View on GitHub ${icon('external')}</a>`}</div></aside>`;
+}
+
+function updatePending() {
+  if (!pending || !signedIn) return;
+  const info = pendingDetails();
+  for (const name of ['stage','message','elapsed']) {
+    const el = document.querySelector(`.pending-${name}`);
+    if (el && el.textContent !== info[name]) el.textContent = info[name];
+  }
+}
+
 function shell() {
   const page = route();
   const labels = {overview:'Overview',create:'Create a post',schedule:'Schedule',activity:'Activity',settings:'Settings'};
@@ -72,7 +100,7 @@ function shell() {
     <div class="sidebar-bottom"><div class="sidebar-note">${icon('leaf')}<strong>A good rhythm goes a long way.</strong><p>Keep your page active.<br>Keep your time for you.</p></div><a href="#settings" class="nav-link ${page==='settings'?'active':''}">${icon('settings')}Settings</a><button class="nav-link" data-action="logout">${icon('logout')}${demo?'Exit demo':'Lock studio'}</button><div class="connection-status"><i></i>${demo?'Demo workspace':'Studio connected'}${icon('github')}</div></div></aside>
     <div class="workspace"><header class="topbar"><div class="breadcrumb"><button class="icon-btn mobile-menu" data-action="menu" aria-label="Toggle navigation">${icon('menu')}</button><span>Workspace</span>${icon('chevron')}<strong>${labels[page]}</strong></div><div class="topbar-end"><span class="timezone">${icon('globe')} Asia/Jerusalem</span><span class="session-pill">${icon(demo?'info':'lock')}${demo?'Demo mode':'Private studio'}</span><div class="small-avatar">AK</div></div></header>
     ${demo?'<div class="demo-banner"><span><strong>A look around your future studio.</strong> You’re using sample content.</span><button data-action="logout">Open your studio '+icon('arrow')+'</button></div>':''}
-    <main id="main-content">${pending?`<div class="pending-banner" role="status"><span class="spinner"></span><div><strong>${e(pending.label)}</strong><span>${Date.now()-pending.started>180000?'Still waiting for GitHub. You can check progress in Actions.':'GitHub is working on your request. This usually takes a minute.'}</span></div>${demo?'':`<a href="https://github.com/${e(github.repoName())}/actions/workflows/studio.yml" target="_blank" rel="noopener noreferrer">View progress ${icon('external')}</a>`}</div>`:''}
+    <main id="main-content">${pendingBanner()}
     ${{overview:overview,create:composer,schedule:schedulePage,activity:activityPage,settings:settingsPage}[page]()}</main>
     <footer class="workspace-footer"><span>Alfred Studio <span class="footer-dot">·</span> A little more consistent.</span><span>${icon('clock')} Times shown in Israel time unless specified</span></footer></div></div>`;
 }
@@ -245,6 +273,7 @@ async function sync() {
     state=await github.readState();
     if (pending) {
       const op=state.operations.find(x=>x.id===pending.id);
+      if (op?.status === 'running') {pending.phase='running';updatePending();}
       if (op && ['complete','failed'].includes(op.status)) {
         const old=pending; pending=null;
         if(op.status==='failed') toast(op.error,true);
@@ -270,7 +299,7 @@ async function sync() {
 async function command(payload,label,success) {
   if(pending||uploading) return toast('Let the current request finish first.');
   const id=crypto.randomUUID();
-  pending={id,label,success,started:Date.now(),promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
+  pending={id,label,success,started:Date.now(),phase:'sending',promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
   try {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
@@ -282,6 +311,9 @@ async function command(payload,label,success) {
       pending=null;render();toast(`${success} (demo only)`);
     } else {
       await github.dispatch({...payload,id});
+      if(!signedIn || pending?.id !== id)return;
+      if(pending.phase==='sending')pending.phase='queued';
+      updatePending();
       await sync();
     }
   } catch(error) {pending=null;render();toast(error.message,true);}
@@ -490,7 +522,7 @@ document.addEventListener('click',async event=> {
     if(!demo){await sync();if(!signedIn)return;}
     const tasks=dueTasks(state);
     modal('Run due tasks now?',demo?'This is a demo. No post will be sent to Facebook.':'Due posts set to publish will be sent to Facebook. Draft-only tasks will prepare a draft for review.',
-      `${tasks.length?`<div class="run-due-list">${tasks.map(task=>`<div class="run-due-item">${typeIcon(task.type)}<div><strong>${e(task.name)}</strong><span>${e(formatDate(task.date))} · ${task.mode==='draft'?'Prepare a draft':task.kind==='draft'?'Publish saved post':'Generate and publish'}</span></div></div>`).join('')}</div>`:'<p class="field-hint">No tasks are currently due. You can still request a fresh check.</p>'}<p class="field-hint">The check uses your saved schedules when it starts. Paused, future, and expired recurring tasks are not forced to run. This usually takes about a minute.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Cancel</button><button class="btn primary" data-action="confirm-run-due">${icon('send')} ${demo?'Simulate due tasks':'Run due tasks'}</button></div>`);
+      `${tasks.length?`<div class="run-due-list">${tasks.map(task=>`<div class="run-due-item">${typeIcon(task.type)}<div><strong>${e(task.name)}</strong><span>${e(formatDate(task.date))} · ${task.mode==='draft'?'Prepare a draft':task.kind==='draft'?'Publish saved post':'Generate and publish'}</span></div></div>`).join('')}</div>`:'<p class="field-hint">No tasks are currently due. You can still request a fresh check.</p>'}<p class="field-hint">The check uses your saved schedules when it starts. Paused, future, and expired recurring tasks are not forced to run. GitHub may take a few minutes to start and finish the check.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Cancel</button><button class="btn primary" data-action="confirm-run-due">${icon('send')} ${demo?'Simulate due tasks':'Run due tasks'}</button></div>`);
   }
   if(action==='confirm-run-due') {closeModal();await command({action:'run_due'},'Running due tasks…','Schedule check finished. Review the results in Schedule and Activity.');}
   if(action==='recover-missed') {
@@ -523,5 +555,6 @@ async function loadSecrets() {
   }
 }
 setInterval(sync,8000);
+setInterval(updatePending,1000);
 try {config=await fetch('./config.json',{cache:'no-store'}).then(r=>r.json());}catch{/* login reports a missing connection configuration */}
 render();
