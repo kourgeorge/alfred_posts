@@ -90,9 +90,20 @@ Choose the format, weekdays, preferred time, timezone, and action:
 Pause, edit, or remove schedules from the dashboard. Schedules only apply to future
 slots when created, edited, or resumed. The worker checks twice an hour at minutes
 7 and 37. Times are the earliest intended publication time, not a precise SLA;
-GitHub can delay or occasionally drop scheduled workflow starts. Recurring slots
-more than two hours late are skipped to avoid a backlog of auto-generated posts.
-One-time posts are retained until the next successful check, even if it is later.
+GitHub can delay or occasionally drop scheduled workflow starts. The latest eligible
+recurring slot catches up at the next successful check for up to 24 hours, even if
+that is the following local day. Only the latest slot runs after an outage, so a
+backlog does not publish all at once. Older expired slots are recorded as missed
+in Activity and need manual review. One-time posts are retained until the next
+successful check, even if it is later.
+
+The dashboard keeps a waiting or overdue occurrence visible until a worker claims
+it. Schedule cards show the latest run result, and the schedule page shows the
+last completed check. A missed occurrence is visible even before the next worker
+starts; once a worker returns, it also saves a missed-run receipt in Activity.
+The 30-minute interval is a request to GitHub, not a promise of on-time execution.
+The catch-up fix uses the existing private workflow without another hosting service.
+Increasing cron frequency alone cannot guarantee exact-minute publishing.
 
 The default timezone is `Asia/Jerusalem`; daylight saving is handled by IANA timezone
 rules. The calendar displays each recurring task's chosen local time. Individual

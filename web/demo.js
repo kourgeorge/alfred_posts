@@ -12,8 +12,8 @@ export function demoState() {
   return { version: 1, drafts: [photo, video, question, { ...photo, id: 'demo-published', status: 'published',
     published_at: ago(1), preview: null, source: {...photo.source, name: 'Small habits. Safer roads.'} }],
     schedules: [
-      { id: 'demo-s1', name: 'Morning driving tips', type: 'image', mode: 'draft', days: [0, 2, 4], time: '09:00', timezone: 'Asia/Jerusalem', enabled: true },
-      { id: 'demo-s2', name: 'The theory challenge', type: 'question', mode: 'publish', days: [1, 3, 6], time: '18:00', timezone: 'Asia/Jerusalem', enabled: true },
+      { id: 'demo-s1', name: 'Morning driving tips', type: 'image', mode: 'draft', days: [0, 2, 4], time: '09:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
+      { id: 'demo-s2', name: 'The theory challenge', type: 'question', mode: 'publish', days: [1, 3, 6], time: '18:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
       { id: 'demo-s3', name: 'A lesson for the weekend', type: 'video', mode: 'draft', days: [4], time: '10:30', timezone: 'Asia/Jerusalem', enabled: false },
     ], operations: [], posted: { image: ['sample'], video: [], question: [] } };
 }
@@ -45,11 +45,11 @@ export function demoCommand(state, command) {
     case 'delete_draft': draft.status = 'deleted'; break;
     case 'save_schedule': {
       const existing = state.schedules.find(s => s.id === command.schedule_id);
-      if (existing) Object.assign(existing, command.schedule);
-      else state.schedules.push({...command.schedule, id: command.id});
+      if (existing) Object.assign(existing, command.schedule, {starts_at:new Date().toISOString()});
+      else state.schedules.push({...command.schedule, id: command.id, starts_at:new Date().toISOString()});
       break;
     }
-    case 'toggle_schedule': state.schedules.find(s => s.id === command.schedule_id).enabled = command.enabled; break;
+    case 'toggle_schedule': Object.assign(state.schedules.find(s => s.id === command.schedule_id), {enabled:command.enabled, starts_at:new Date().toISOString()}); break;
     case 'delete_schedule': state.schedules = state.schedules.filter(s => s.id !== command.schedule_id); break;
   }
   state.operations.unshift({ id: command.id, action: command.action, status: 'complete', result, created_at: new Date().toISOString() });

@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
-import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, inZone, zonedParts, sourceUrl } from './utils.js';
+import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, inZone, zonedParts, sourceUrl } from './utils.js';
 
 const root = document.querySelector('#app');
 let config = {gateway: ''};
@@ -20,6 +20,7 @@ let activityFilter = 'all';
 let mobileNav = false;
 let polling = false;
 let toastTimer;
+let renderedState = '';
 const edits = new Map();
 const editRevisions = new Map();
 let editorSnapshot = null;
@@ -31,7 +32,7 @@ const route = () => ['overview','create','schedule','activity','settings'].inclu
 const currentDraft = () => state.drafts.find(d => d.id === selectedDraft);
 const draftText = draft => edits.get(draft.id) ?? draft.text;
 const blocked = () => pending ? 'disabled' : '';
-const badge = (status) => `<span class="badge ${e(status)}"><i></i>${e({draft:'Draft',scheduled:'Scheduled',preparing:'Preparing',publishing:'Publishing',processing:'Processing',published:'Published',failed:'Needs attention',uncertain:'Check Facebook',deleted:'Deleted',running:'In progress',complete:'Complete'}[status] || status)}</span>`;
+const badge = (status) => `<span class="badge ${e(status)}"><i></i>${e({draft:'Draft',scheduled:'Scheduled',preparing:'Preparing',publishing:'Publishing',processing:'Processing',published:'Published',failed:'Needs attention',uncertain:'Check Facebook',deleted:'Deleted',running:'In progress',complete:'Complete',waiting:'Waiting for worker',overdue:'Overdue',missed:'Missed'}[status] || status)}</span>`;
 const typeIcon = (type) => `<span class="type-icon ${e(type)}">${icon(type)}</span>`;
 const brand = () => `<div class="brand"><span class="brand-symbol">${icon('leaf')}</span><span>alfred<span class="brand-dot">.</span></span></div>`;
 
@@ -79,16 +80,20 @@ function overview() {
   return `${heading(e(today.toUpperCase()),'Your content, on autopilot.','A clear head. A full content calendar. A little time back.',`<button class="btn primary" data-action="new">${icon('plus')} Create a post</button>`)}
     <section class="stats-grid" aria-label="Workspace totals">${[[published.length,'Posts published','send','Your ideas, out in the world'],[drafts.length,'Drafts to review','edit','A fresh perspective is waiting'],[scheduled.length,'Active schedules','calendar','A rhythm that works for you']].map(([n,label,ico,note])=>`<div class="stat-card"><div><span class="stat-label">${label}</span><strong>${n.toString().padStart(2,'0')}</strong><small>${note}</small></div><span class="stat-icon">${icon(ico)}</span></div>`).join('')}</section>
     <div class="overview-grid"><section class="panel creation-panel"><div class="section-title"><div><span class="eyebrow">LET’S MAKE SOMETHING</span><h2>What will you share today?</h2></div>${icon('spark')}</div><p>A useful tip, a lesson, or a question that starts a conversation.</p><div class="create-type-grid">${Object.keys(typeNames).map(type=>`<button class="create-type ${type}" data-action="new" data-type="${type}">${typeIcon(type)}<strong>${typeNames[type]}</strong><span>${{image:'Let an image do the talking',video:'Bring a lesson to life',question:'Get people thinking'}[type]}</span>${icon('arrow')}</button>`).join('')}</div><div class="soft-note">${icon('check')} Every new post starts with a draft you can review.</div></section>
-    <section class="panel next-panel"><div class="section-title"><h2>Coming up next</h2><a href="#schedule" class="text-link">View all ${icon('arrow')}</a></div>${upcomingRows()}<div class="cadence-note">${icon('clock')} Your schedule is checked about every 30 minutes.</div></section></div>
+    <section class="panel next-panel"><div class="section-title"><h2>Coming up next</h2><a href="#schedule" class="text-link">View all ${icon('arrow')}</a></div>${upcomingRows()}<div class="cadence-note">${icon('clock')} Checks are requested every 30 minutes. Delayed posts can catch up within 24 hours.</div></section></div>
     <section class="panel drafts-panel"><div class="section-title"><div><h2>On your desk <span class="count-chip">${drafts.length}</span></h2><p>A few words away from ready.</p></div><a class="text-link" href="#create">Open drafts ${icon('arrow')}</a></div>${drafts.length?drafts.slice(0,3).map(d=>draftRow(d)).join(''):empty('edit','Room for your next idea','Create a photo, video, or question post to get started.')}</section>`;
 }
 
 function upcomingRows() {
   const items = [
-    ...state.schedules.filter(s=>s.enabled).map(s=>({name:s.name,type:s.type,date:nextOccurrence(s),mode:s.mode})),
+    ...state.schedules.filter(s=>s.enabled).map(s=>{
+      const run=scheduleRun(s,state.drafts);
+      const pendingRun=run&&['waiting','overdue','missed'].includes(run.status);
+      return {name:s.name,type:s.type,date:pendingRun?run.date:nextOccurrence(s),mode:s.mode,status:pendingRun?run.status:null};
+    }),
     ...state.drafts.filter(d=>d.status==='scheduled').map(d=>({name:d.source.name,type:d.type,date:new Date(d.scheduled_at),mode:'publish'})),
   ].filter(x=>x.date).sort((a,b)=>a.date-b.date).slice(0,3);
-  return items.length ? items.map(item=>`<div class="upcoming-row">${typeIcon(item.type)}<div><strong>${e(item.name)}</strong><span>${e(formatDate(item.date))} <b>·</b> ${item.mode==='draft'?'Prepare draft':'Auto-publish'}</span></div>${icon('chevron')}</div>`).join('') : empty('calendar','Find your rhythm','Add a recurring schedule or choose a time for a finished draft.');
+  return items.length ? items.map(item=>`<div class="upcoming-row">${typeIcon(item.type)}<div><strong>${e(item.name)}</strong><span>${e(formatDate(item.date))} <b>·</b> ${item.status?e({waiting:'Waiting for worker',overdue:'Overdue · waiting for worker',missed:'Missed · needs attention'}[item.status]):item.mode==='draft'?'Prepare draft':'Auto-publish'}</span></div>${icon('chevron')}</div>`).join('') : empty('calendar','Find your rhythm','Add a recurring schedule or choose a time for a finished draft.');
 }
 
 function draftRow(draft) {
@@ -124,14 +129,16 @@ function mediaPreview(draft) {
 function schedulePage() {
   const queued = state.drafts.filter(d=>d.status==='scheduled');
   return `${heading('YOUR PUBLISHING RHYTHM','A little planning. A lot of freedom.','Set it up once. Keep showing up for your audience.',`<button class="btn primary" data-action="new-schedule" ${blocked()}>${icon('plus')} Add a schedule</button>`)}
-    <div class="schedule-info">${icon('clock')}<div><strong>A steady rhythm, without watching the clock.</strong><span>Schedules are checked about every 30 minutes. GitHub may add a delay; recurring runs more than two hours late are skipped.</span></div><span class="info-tag">Asia/Jerusalem</span></div>
+    <div class="schedule-info">${icon('clock')}<div><strong>Delayed posts stay on the schedule.</strong><span>Checks are requested every 30 minutes, but GitHub can start them late. The latest recurring post catches up within 24 hours; older missed runs need your attention.</span><span>${state.scheduler?.last_finished_at?`Last completed check: ${e(formatDate(state.scheduler.last_finished_at))}`:'No completed schedule check recorded yet.'}</span></div><span class="info-tag">Asia/Jerusalem</span></div>
     <section class="panel week-panel"><div class="section-title"><h2>Your weekly rhythm</h2><span class="muted">Recurring schedules</span></div><div class="week-grid">${dayNames.map((day,i)=>`<div class="week-day"><div class="week-day-label">${day}<span>${state.schedules.filter(s=>s.enabled&&s.days.includes(i)).length||'—'}</span></div>${state.schedules.filter(s=>s.enabled&&s.days.includes(i)).map(s=>`<button class="week-event ${e(s.type)}" ${blocked()} data-action="edit-schedule" data-id="${e(s.id)}"><span>${icon(s.type)}${e(s.time)}</span><strong>${e(s.name)}</strong><small>${s.mode==='draft'?'Draft':'Publish'}</small></button>`).join('')}</div>`).join('')}</div></section>
     <section class="schedules-list"><div class="section-title"><h2>Recurring schedules <span class="count-chip">${state.schedules.length}</span></h2></div>${state.schedules.length?state.schedules.map(scheduleCard).join(''):empty('calendar','Make room for consistency','Add your first schedule. You can prepare drafts or publish automatically.')}</section>
     ${queued.length?`<section class="panel"><div class="section-title"><h2>One-time posts</h2><span class="muted">Ready for their moment</span></div>${queued.sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(d=>`<div class="one-time-row">${draftRow(d)}<span class="muted">${e(formatDate(d.scheduled_at))}</span></div>`).join('')}</section>`:''}`;
 }
 
 function scheduleCard(s) {
-  return `<article class="schedule-card ${s.enabled?'':'paused-card'}">${typeIcon(s.type)}<div class="schedule-card-main"><div><h3>${e(s.name)}</h3><span class="badge ${s.enabled?'active':'paused'}"><i></i>${s.enabled?'Active':'Paused'}</span></div><p>${e(s.days.map(d=>dayNames[d]).join(', '))} <b>·</b> ${e(s.time)} <b>·</b> ${e(s.timezone)} <b>·</b> ${s.mode==='draft'?'Prepare a draft':'Publish automatically'}</p></div><div class="schedule-card-actions"><button class="icon-btn" data-action="edit-schedule" data-id="${e(s.id)}" aria-label="Edit ${e(s.name)}" ${blocked()}>${icon('edit')}</button><button class="switch ${s.enabled?'on':''}" role="switch" aria-checked="${s.enabled}" aria-label="Enable ${e(s.name)}" data-action="toggle-schedule" data-id="${e(s.id)}" ${blocked()}><span></span></button></div></article>`;
+  const run=scheduleRun(s,state.drafts);
+  const message=run?.error || ({waiting:'Waiting for the next worker check.',overdue:'The worker is delayed. This run can still catch up within 24 hours.',missed:'The 24-hour catch-up window ended. Create a post manually if it is still needed.'}[run?.status] || 'Latest run');
+  return `<article class="schedule-card ${s.enabled?'':'paused-card'}">${typeIcon(s.type)}<div class="schedule-card-main"><div><h3>${e(s.name)}</h3><span class="badge ${s.enabled?'active':'paused'}"><i></i>${s.enabled?'Active':'Paused'}</span></div><p>${e(s.days.map(d=>dayNames[d]).join(', '))} <b>·</b> ${e(s.time)} <b>·</b> ${e(s.timezone)} <b>·</b> ${s.mode==='draft'?'Prepare a draft':'Publish automatically'}</p>${run?`<div class="schedule-run">${badge(run.status)}<span>${e(formatDate(run.date))} · ${e(message)}</span></div>`:''}</div><div class="schedule-card-actions"><button class="icon-btn" data-action="edit-schedule" data-id="${e(s.id)}" aria-label="Edit ${e(s.name)}" ${blocked()}>${icon('edit')}</button><button class="switch ${s.enabled?'on':''}" role="switch" aria-checked="${s.enabled}" aria-label="Enable ${e(s.name)}" data-action="toggle-schedule" data-id="${e(s.id)}" ${blocked()}><span></span></button></div></article>`;
 }
 
 function activityPage() {
@@ -175,7 +182,11 @@ function connectionsPage() {
     <aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('lock')}</span><h3>Private by design.</h3><p>Credentials are encrypted in your browser and saved in your private repository’s GitHub Secrets.</p><p>They’re never saved in this website or returned to the browser. To change a key, simply enter a replacement.</p><div class="soft-note">${icon('check')} No database. No extra account.</div></div><div class="panel connection-panel"><span class="eyebrow">YOUR CONNECTION</span><h3>${icon('github')} GitHub Actions</h3><p class="repo-name">${e(demo?'Demo workspace':github.repoName())}</p><span class="connection-inline"><i></i>${demo?'Sample data only':'Password session active'}</span><button class="btn secondary" data-action="logout">${icon('lock')} Lock studio</button></div><div class="plain-note">${icon('info')} Saving credentials affects future runs. A workflow already in progress keeps its current keys.</div></aside></div>`;
 }
 
-function render() { signedIn ? shell() : login(); }
+const displayState = () => JSON.stringify([state, state.schedules.map(s=>scheduleRun(s,state.drafts)?.status)]);
+function render() {
+  signedIn ? shell() : login();
+  renderedState = signedIn ? displayState() : '';
+}
 function lockStudio() {
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
@@ -205,6 +216,10 @@ async function sync() {
         render();
       }
     }
+    // Refresh status pages when data or an overdue deadline changes. Keep open
+    // editors and dialogs intact so polling cannot disturb an in-progress edit.
+    if (!pending && ['overview','schedule','activity'].includes(route())
+      && !document.querySelector('dialog[open]') && displayState() !== renderedState) render();
   } catch(error) { toast(error.message,true); }
   finally { polling=false; }
 }

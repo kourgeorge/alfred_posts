@@ -8,7 +8,7 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
-from studio.scheduler import TYPES, due_slot, parse_future, validate_schedule
+from studio.scheduler import TYPES, due_slot, missed_slot, parse_future, validate_schedule
 from studio.store import now_iso
 
 
@@ -155,7 +155,7 @@ class Studio:
                 revisions[kind] = revisions.get(kind, 0) + 1
             return self.store.change(save_prompt)
         if action == "generate":
-            return self.generate(command.get("type"), command["id"])
+            return self.generate(command.get("type"), command["id"], command.get("schedule_id"))
         if action == "publish":
             return self.publish(command)
         if action in ("save_draft", "schedule_draft", "cancel_draft"):
@@ -231,6 +231,7 @@ class Studio:
 
     def tick(self, now=None):
         now = now or datetime.now(timezone.utc)
+        self.store.change(lambda s: s.setdefault("scheduler", {}).update(last_started_at=now.isoformat()))
         self.refresh_videos()
         state, _ = self.store.read()
         for item in state["drafts"]:
@@ -241,6 +242,21 @@ class Studio:
                 except RuntimeError:
                     continue
         for schedule in state["schedules"]:
+            missed = missed_slot(schedule, now)
+            if missed:
+                def record_missed(state):
+                    latest = next((s for s in state["schedules"] if s["id"] == schedule["id"]), None)
+                    if not latest or missed_slot(latest, now) != missed:
+                        return
+                    latest.update(last_missed_slot=missed, last_missed_at=now.isoformat())
+                    state["operations"].insert(0, {
+                        "id": f"missed-{schedule['id']}-{missed}", "action": "missed_schedule",
+                        "status": "failed", "created_at": now.isoformat(), "finished_at": now.isoformat(),
+                        "schedule_id": schedule["id"], "slot": missed,
+                        "error": f"{latest['name']}: {missed} ({latest['timezone']}) was missed because no worker claimed it within 24 hours. Create a post manually if it is still needed.",
+                    })
+                    state["operations"] = state["operations"][:150]
+                self.store.change(record_missed)
             slot = due_slot(schedule, now)
             if not slot:
                 continue
@@ -248,16 +264,27 @@ class Studio:
                 latest = next((s for s in state["schedules"] if s["id"] == schedule["id"]), None)
                 if not latest or due_slot(latest, now) != slot:
                     return False
-                latest.update(last_slot=slot, last_run=now.isoformat())
+                latest.update(last_slot=slot, last_run=now.isoformat(),
+                              last_draft_id=hashlib.sha256(f"{schedule['id']}:{slot}".encode()).hexdigest()[:32],
+                              last_status="running", last_error=None)
                 return copy.deepcopy(latest)
             reserved_schedule = self.store.change(reserve)
             if not reserved_schedule:
                 continue
             schedule = reserved_schedule
             draft_id = hashlib.sha256(f"{schedule['id']}:{slot}".encode()).hexdigest()[:32]
+            def finish_run(state, error=None):
+                latest = next((s for s in state["schedules"] if s["id"] == schedule["id"]), None)
+                if not latest or latest.get("last_slot") != slot:
+                    return
+                draft = next((d for d in state["drafts"] if d["id"] == draft_id), None)
+                latest.update(last_status=draft["status"] if draft else "failed", last_error=error)
             try:
-                self.command({"id": draft_id, "action": "generate", "type": schedule["type"]})
+                self.command({"id": draft_id, "action": "generate", "type": schedule["type"], "schedule_id": schedule["id"]})
                 if schedule["mode"] == "publish":
                     self.command({"id": f"publish-{draft_id}", "action": "publish", "draft_id": draft_id, "revision": 1})
-            except RuntimeError:
+            except RuntimeError as error:
+                self.store.change(lambda s: finish_run(s, str(error)))
                 continue
+            self.store.change(finish_run)
+        self.store.change(lambda s: s.setdefault("scheduler", {}).update(last_finished_at=now_iso()))

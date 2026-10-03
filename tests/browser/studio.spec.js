@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import sodium from 'libsodium-wrappers';
 import { demoState } from '../../web/demo.js';
-import { inZone, nextOccurrence } from '../../web/utils.js';
+import { inZone, nextOccurrence, scheduleRun } from '../../web/utils.js';
 import defaultPrompts from '../../prompts.json' with { type: 'json' };
 
 async function demo(page) {
@@ -132,6 +132,47 @@ test('Israel local times handle daylight saving changes',()=> {
   expect(inZone('2026-10-02T09:00','Asia/Jerusalem').toISOString()).toBe('2026-10-02T06:00:00.000Z');
   expect(inZone('2026-12-02T09:00','Asia/Jerusalem').toISOString()).toBe('2026-12-02T07:00:00.000Z');
   expect(nextOccurrence({timezone:'Asia/Jerusalem',time:'09:00',days:[4]},new Date('2026-10-02T07:00:00Z')).toISOString()).toBe('2026-10-09T06:00:00.000Z');
+  expect(inZone('2026-11-01T01:30','America/New_York').toISOString()).toBe('2026-11-01T05:30:00.000Z');
+  expect(()=>inZone('2026-03-08T02:30','America/New_York')).toThrow('does not exist');
+});
+
+test('pending recurring slots stay visible until claimed or expired',()=> {
+  const schedule={id:'sat',enabled:true,timezone:'Asia/Jerusalem',time:'10:10',days:[5],starts_at:'2026-10-03T07:06:46Z'};
+  expect(scheduleRun(schedule,[],new Date('2026-10-03T07:09:00Z'))).toBeNull();
+  expect(scheduleRun(schedule,[],new Date('2026-10-03T07:15:00Z')).status).toBe('waiting');
+  expect(scheduleRun(schedule,[],new Date('2026-10-03T10:19:00Z')).status).toBe('overdue');
+  expect(scheduleRun(schedule,[],new Date('2026-10-04T07:10:00Z')).status).toBe('overdue');
+  expect(scheduleRun(schedule,[],new Date('2026-10-04T07:10:01Z')).status).toBe('missed');
+  expect(scheduleRun({...schedule,enabled:false},[],new Date('2026-10-03T10:19:00Z'))).toBeNull();
+  expect(scheduleRun({...schedule,starts_at:'2026-10-03T08:00:00Z'},[],new Date('2026-10-03T10:19:00Z'))).toBeNull();
+});
+
+test('overdue and missed schedule status is visible without a worker update',async({page})=> {
+  const remote=demoState();
+  remote.schedules=[{id:'sat',name:'Saturday photo',type:'image',mode:'publish',enabled:true,
+    timezone:'Asia/Jerusalem',time:'10:10',days:[5],starts_at:'2026-10-03T07:06:46Z'}];
+  remote.scheduler={last_finished_at:'2026-10-03T05:00:15Z'};
+  await page.clock.install({time:new Date('2026-10-03T10:19:00Z')});
+  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+    const path=new URL(route.request().url()).pathname;
+    const body=path==='/api/login'?{token:'test-session',repository:'kourgeorge/alfred_posts_automation'}:remote;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+  });
+  await page.goto('/');
+  await page.getByLabel('Password',{exact:true}).fill('test-password');
+  await page.getByRole('button',{name:'Open studio'}).click();
+  await expect(page.locator('.upcoming-row').filter({hasText:'Saturday photo'})).toContainText('Overdue');
+  await page.getByRole('link',{name:'Schedule',exact:true}).click();
+  await expect(page.locator('.schedule-run')).toContainText('Overdue');
+  await expect(page.locator('.schedule-info')).toContainText('Last completed check:');
+  await page.clock.fastForward(24*3600000);
+  await expect(page.locator('.schedule-run')).toContainText('Missed');
+  await expect(page.locator('.schedule-run')).toContainText('Create a post manually');
+  remote.schedules[0].last_slot='2026-10-03@10:10';
+  remote.schedules[0].last_draft_id=remote.drafts[0].id;
+  remote.drafts[0].status='published';
+  await page.clock.fastForward(9000);
+  await expect(page.locator('.schedule-run .badge')).toHaveText('Published');
 });
 
 test('a background update cannot replace the caption or revision being previewed',async({page})=> {

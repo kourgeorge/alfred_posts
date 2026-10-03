@@ -1,8 +1,9 @@
-"""Timezone-aware schedules. Late recurring runs expire after two hours."""
+"""Timezone-aware schedules with explicit detection of missed occurrences."""
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 TYPES = ("image", "video", "question")
+LATE_LIMIT = timedelta(hours=24)
 
 
 def validate_schedule(value):
@@ -23,21 +24,44 @@ def validate_schedule(value):
             "days": sorted(set(days)), "enabled": bool(value.get("enabled", True))}
 
 
-def due_slot(schedule, now=None):
+def recent_slots(schedule, now=None):
+    """Yield eligible local occurrences newest first, up to one week back."""
     if not schedule["enabled"]:
-        return None
+        return
     now = now or datetime.now(timezone.utc)
     local = now.astimezone(ZoneInfo(schedule["timezone"]))
     hour, minute = map(int, schedule["time"].split(":"))
-    for days_ago in (0, 1):
+    for days_ago in range(8):
         target = (local - timedelta(days=days_ago)).replace(hour=hour, minute=minute, second=0, microsecond=0, fold=0)
         if target.weekday() not in schedule["days"]:
             continue
-        if schedule.get("starts_at") and target.astimezone(timezone.utc) < datetime.fromisoformat(schedule["starts_at"]):
+        utc_target = target.astimezone(timezone.utc)
+        # A nonexistent spring-forward time must not become a different local time.
+        if utc_target.astimezone(local.tzinfo).replace(tzinfo=None) != target.replace(tzinfo=None):
             continue
-        age = now - target.astimezone(timezone.utc)
-        slot = f"{target.date()}@{schedule['time']}"
-        if timedelta(0) <= age <= timedelta(hours=2) and slot != schedule.get("last_slot"):
+        starts_at = schedule.get("starts_at") or schedule.get("created_at")
+        if starts_at and utc_target < datetime.fromisoformat(starts_at):
+            continue
+        if utc_target <= now:
+            yield f"{target.date()}@{schedule['time']}", utc_target
+
+
+def due_slot(schedule, now=None):
+    now = now or datetime.now(timezone.utc)
+    latest = next(recent_slots(schedule, now), None)
+    if latest:
+        slot, target = latest
+        if (now - target <= LATE_LIMIT and slot > schedule.get("last_slot", "")
+                and slot > schedule.get("last_missed_slot", "")):
+            return slot
+    return None
+
+
+def missed_slot(schedule, now=None):
+    now = now or datetime.now(timezone.utc)
+    for slot, target in recent_slots(schedule, now):
+        if (now - target > LATE_LIMIT and slot > schedule.get("last_slot", "")
+                and slot > schedule.get("last_missed_slot", "")):
             return slot
     return None
 

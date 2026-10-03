@@ -204,21 +204,104 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(len(self.store.state["drafts"]), 1)
         self.assertEqual(self.media.posts, [])
 
+    def saturday_schedule(self, **extra):
+        schedule = {"id": "saturday-1010", "name": "sat", "time": "10:10", "days": [5],
+                    "timezone": "Asia/Jerusalem", "type": "image", "mode": "publish", "enabled": True,
+                    "starts_at": "2026-10-03T07:06:46+00:00", **extra}
+        self.store.state["schedules"] = [schedule]
+        return schedule
+
+    def test_delayed_github_check_catches_up_saturday_post_once(self):
+        self.saturday_schedule()
+        # The live incident: 10:10 Israel time, next check at 13:19.
+        when = datetime(2026, 10, 3, 10, 19, tzinfo=timezone.utc)
+        self.app.tick(when)
+        self.app.tick(when)
+        self.assertEqual(len(self.media.posts), 1)
+        self.assertEqual(self.media.posts[0][0]["schedule_id"], "saturday-1010")
+        self.assertEqual(self.store.state["schedules"][0]["last_status"], "published")
+        self.assertIn("last_finished_at", self.store.state["scheduler"])
+
+    def test_delayed_draft_only_schedule_still_requires_review(self):
+        self.saturday_schedule(mode="draft")
+        self.app.tick(datetime(2026, 10, 3, 10, 19, tzinfo=timezone.utc))
+        self.assertEqual(len(self.store.state["drafts"]), 1)
+        self.assertEqual(self.media.posts, [])
+        self.assertEqual(self.store.state["schedules"][0]["last_status"], "draft")
+
+    def test_expired_recurring_run_is_reported_once_without_publishing(self):
+        self.saturday_schedule()
+        when = datetime(2026, 10, 4, 7, 11, tzinfo=timezone.utc)
+        self.app.tick(when)
+        self.app.tick(when)
+        self.assertEqual(self.media.posts, [])
+        issues = [op for op in self.store.state["operations"] if op["action"] == "missed_schedule"]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["slot"], "2026-10-03@10:10")
+        self.assertIn("24 hours", issues[0]["error"])
+
+    def test_long_outage_only_publishes_latest_daily_slot(self):
+        self.saturday_schedule(days=list(range(7)))
+        when = datetime(2026, 10, 6, 7, 30, tzinfo=timezone.utc)
+        self.app.tick(when)
+        self.app.tick(when)
+        self.assertEqual(len(self.media.posts), 1)
+        schedule = self.store.state["schedules"][0]
+        self.assertEqual(schedule["last_slot"], "2026-10-06@10:10")
+        self.assertEqual(schedule["last_missed_slot"], "2026-10-05@10:10")
+
+    def test_failed_catch_up_is_visible_and_ambiguous_posts_are_not_retried(self):
+        self.saturday_schedule()
+        self.media.fail = True
+        when = datetime(2026, 10, 3, 10, 19, tzinfo=timezone.utc)
+        self.app.tick(when)
+        self.app.tick(when)
+        self.assertEqual(len(self.media.posts), 1)
+        self.assertEqual(self.store.state["schedules"][0]["last_status"], "uncertain")
+        self.assertTrue(self.store.state["schedules"][0]["last_error"])
+
+    def test_paused_or_resumed_schedule_does_not_catch_up_old_slots(self):
+        for extra in [{"enabled": False}, {"starts_at": "2026-10-03T11:00:00+00:00"}]:
+            with self.subTest(extra=extra):
+                self.saturday_schedule(**extra)
+                self.app.tick(datetime(2026, 10, 3, 11, 30, tzinfo=timezone.utc))
+        self.assertEqual(self.media.posts, [])
+        self.assertFalse(any(op["action"] == "missed_schedule" for op in self.store.state["operations"]))
+
 
 class ScheduleTest(unittest.TestCase):
     def setUp(self):
         self.schedule = {"name": "Morning", "time": "09:00", "days": [0,1,2,3,4], "timezone": "Asia/Jerusalem", "type": "image", "mode": "draft", "enabled": True}
 
     def test_israel_summer_and_winter_offsets(self):
+        self.schedule["days"] = [4]
         self.assertIsNotNone(due_slot(self.schedule, datetime(2026, 10, 2, 6, 10, tzinfo=timezone.utc)))
+        self.schedule["days"] = [2]
         self.assertIsNone(due_slot(self.schedule, datetime(2026, 12, 2, 6, 10, tzinfo=timezone.utc)))
         self.assertIsNotNone(due_slot(self.schedule, datetime(2026, 12, 2, 7, 10, tzinfo=timezone.utc)))
 
     def test_weekend_disabled_and_late_runs(self):
         self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 3, 6, 10, tzinfo=timezone.utc)))
-        self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 2, 8, 1, tzinfo=timezone.utc)))
+        self.assertEqual(due_slot(self.schedule, datetime(2026, 10, 2, 8, 1, tzinfo=timezone.utc)), "2026-10-02@09:00")
         self.schedule["enabled"] = False
         self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 2, 6, 10, tzinfo=timezone.utc)))
+
+    def test_catch_up_window_is_inclusive_at_24_hours(self):
+        self.schedule["days"] = [4]
+        self.assertEqual(due_slot(self.schedule, datetime(2026, 10, 3, 6, 0, tzinfo=timezone.utc)), "2026-10-02@09:00")
+        self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 3, 6, 0, 1, tzinfo=timezone.utc)))
+
+    def test_out_of_order_worker_does_not_revisit_an_older_slot(self):
+        self.schedule["last_slot"] = "2026-10-02@09:00"
+        self.assertIsNone(due_slot(self.schedule, datetime(2026, 10, 1, 7, 0, tzinfo=timezone.utc)))
+
+    def test_dst_gap_is_skipped_and_repeated_hour_runs_only_once(self):
+        self.schedule.update(timezone="America/New_York", days=[6], time="02:30")
+        self.assertIsNone(due_slot(self.schedule, datetime(2026, 3, 8, 8, 0, tzinfo=timezone.utc)))
+        self.schedule["time"] = "01:30"
+        self.assertEqual(due_slot(self.schedule, datetime(2026, 11, 1, 5, 35, tzinfo=timezone.utc)), "2026-11-01@01:30")
+        self.schedule["last_slot"] = "2026-11-01@01:30"
+        self.assertIsNone(due_slot(self.schedule, datetime(2026, 11, 1, 6, 35, tzinfo=timezone.utc)))
 
     def test_new_schedule_does_not_publish_a_past_slot(self):
         self.schedule["starts_at"] = "2026-10-02T06:05:00+00:00"
