@@ -1,0 +1,47 @@
+{
+  "default": {
+    "label": "Saved style",
+    "description": "Use your saved writing instructions.",
+    "instruction": ""
+  },
+  "neutral": {
+    "label": "Neutral",
+    "description": "Clear, straightforward, and balanced.",
+    "instruction": "Use a clear, matter-of-fact, balanced tone. Avoid jokes, hype, and emotional exaggeration."
+  },
+  "funny": {
+    "label": "Funny",
+    "description": "Light humor and a playful touch.",
+    "instruction": "Use light, relatable humor and playful phrasing about learning to drive. Keep it kind; never mock learners or make unsafe driving sound acceptable."
+  },
+  "friendly": {
+    "label": "Friendly",
+    "description": "Warm and conversational, like a helpful friend.",
+    "instruction": "Write warmly and conversationally, as a helpful driving instructor speaking directly to a learner. Use approachable, natural language."
+  },
+  "professional": {
+    "label": "Professional",
+    "description": "Polished, confident, and respectful.",
+    "instruction": "Use a polished, confident, respectful tone with precise language. Avoid slang, jokes, and exaggerated claims of expertise."
+  },
+  "educational": {
+    "label": "Educational",
+    "description": "A practical tip with a clear explanation.",
+    "instruction": "Teach one useful point clearly and explain why it matters. Use only supported information; do not invent traffic laws or statistics. For quizzes, encourage thinking without giving away or hinting at the answer."
+  },
+  "motivational": {
+    "label": "Motivational",
+    "description": "Encouraging, positive, and focused on progress.",
+    "instruction": "Encourage steady practice and realistic progress with a positive, reassuring tone. Acknowledge that learning takes time; do not promise test success or guaranteed results."
+  },
+  "storytelling": {
+    "label": "Storytelling",
+    "description": "A relatable moment with a useful takeaway.",
+    "instruction": "Frame the caption around a short, relatable scenario and a useful takeaway. Use a supplied real event faithfully, or clearly introduce a hypothetical situation. Never present an invented event as a personal experience or testimonial."
+  },
+  "promotional": {
+    "label": "Promotional",
+    "description": "Highlight the value and invite people to join.",
+    "instruction": "Highlight the supplied course benefits with an inviting, persuasive tone and a clear call to action. Do not invent discounts, deadlines, scarcity, testimonials, or guarantees."
+  }
+}

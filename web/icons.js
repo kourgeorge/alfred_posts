@@ -6,6 +6,7 @@ const paths = {
   image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/>',
   camera: '<path d="M8 5 9.5 3h5L16 5h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><circle cx="12" cy="13" r="4"/>',
   video: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>',
+  news: '<rect x="4" y="3" width="17" height="18" rx="2"/><path d="M4 7H2v12a2 2 0 0 0 2 2M8 7h9M8 11h4v4H8zM15 11h2m-2 4h2m-9 3h9"/>',
   question: '<path d="M7 20 3 21l1-5a9 9 0 1 1 3 4Z"/><path d="M9.5 8a2.5 2.5 0 1 1 4 2c-1 .7-1.5 1-1.5 2m0 4h.01"/>',
   settings: '<path d="m10 3-.7 2-2 .9L5 5.5 3 9l1.8 1.5v3L3 15l2 3.5 2.3-.4 2 .9.7 2h4l.7-2 2-.9 2.3.4 2-3.5-1.8-1.5v-3L21 9l-2-3.5-2.3.4-2-.9-.7-2z"/><circle cx="12" cy="12" r="3"/>',
   arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',

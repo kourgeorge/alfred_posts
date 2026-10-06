@@ -58,6 +58,7 @@ class UploadTest(TestCase):
 
     def test_description_only_reaches_ai_and_scheduled_post_uses_original_media_and_edited_caption(self):
         self.store.state["prompts"] = {"image":"My saved photo instructions"}
+        self.generate["caption_style"] = "funny"
         with patch("content.OpenAI") as client, patch("studio.media.drive.download_drive_file") as drive:
             client.return_value.chat.completions.create.return_value = SimpleNamespace(
                 choices=[SimpleNamespace(message=SimpleNamespace(content="Generated caption"))])
@@ -67,12 +68,16 @@ class UploadTest(TestCase):
         self.assertTrue(all(isinstance(m["content"], str) for m in call["messages"]))
         self.assertIn(self.description, call["messages"][1]["content"])
         self.assertTrue(call["messages"][0]["content"].startswith("My saved photo instructions"))
+        self.assertIn("Caption style for this draft: Funny.", call["messages"][0]["content"])
+        self.assertIn("כללי דיוק מחייבים", call["messages"][0]["content"])
+        self.assertEqual(self.store.state["prompts"], {"image": "My saved photo instructions"})
         self.assertNotIn("lesson.png", call["messages"][1]["content"])
         self.assertNotIn(base64.b64encode(self.data).decode(), json.dumps(call))
         self.assertEqual(client.return_value.chat.completions.create.call_count, 1)
         drive.assert_not_called()
         draft = self.store.state["drafts"][0]
         self.assertEqual(draft["status"], "draft")
+        self.assertEqual(draft["caption_style"], "funny")
         self.assertTrue(draft["preview"].startswith("data:image/jpeg;base64,"))
         self.assertEqual(draft["source"]["description"], self.description)
         self.app.command({"id":"upload-schedule-001", "action":"schedule_draft", "draft_id":draft["id"],
@@ -82,6 +87,7 @@ class UploadTest(TestCase):
             self.app.tick(datetime(2099, 1, 1, 11, tzinfo=timezone.utc))
         publish.assert_called_once_with(self.config, self.data, "My reviewed caption")
         self.assertEqual(self.store.state["drafts"][0]["status"], "published")
+        self.assertEqual(self.store.state["drafts"][0]["caption_style"], "funny")
 
     def test_video_uses_video_prompt_without_sending_frames_or_audio(self):
         video = b"\x00\x00\x00\x20ftypisom" + b"\x00" * 80

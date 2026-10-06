@@ -11,6 +11,7 @@ import content
 import drive
 import facebook
 from studio.uploads import Uploads, validate_description, validate_media
+from studio.news import NewsService, public_url
 
 
 def digest(data):
@@ -61,6 +62,8 @@ class MediaService:
 
     def prepare(self, post_type, posted, prompt=None):
         c = self.config
+        if post_type == "news":
+            return NewsService(c).prepare(posted, prompt=prompt)
         if post_type == "question":
             item = drive.pick_question(c, posted_ids=set(posted))
             data = google_image(item["question"]["image"])
@@ -81,7 +84,11 @@ class MediaService:
 
     def download(self, draft):
         source = draft["source"]
-        if source.get("upload_id"):
+        if draft["type"] == "news":
+            if not public_url(source.get("url")):
+                raise ValueError("The news source URL is invalid. Generate a new draft.")
+            data = source["url"].encode()
+        elif source.get("upload_id"):
             item, data = self.uploads.read(source["upload_id"])
             if item["type"] != draft["type"]:
                 raise ValueError("The uploaded file does not match this draft.")
@@ -99,6 +106,8 @@ class MediaService:
         return data
 
     def publish(self, draft, data):
+        if draft["type"] == "news":
+            return facebook.post_link_to_page(self.config, draft["source"]["url"], draft["text"])
         if draft["type"] == "video":
             return facebook.post_video_to_page(self.config, data, draft["text"])
         return facebook.post_photo_to_page(self.config, data, draft["text"])

@@ -1,7 +1,7 @@
 import { t, locale } from './i18n.js';
 export const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 export const dayNames = () => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day=>t(day));
-export const typeNames = {get image(){return t('Photo');},get video(){return t('Video');},get question(){return t('Question');}};
+export const typeNames = {get image(){return t('Photo');},get video(){return t('Video');},get question(){return t('Question');},get news(){return t('News Post');}};
 export const editable = draft => ['draft', 'scheduled', 'failed'].includes(draft?.status);
 export const formatDate = value => value ? new Intl.DateTimeFormat(locale(), {month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Asia/Jerusalem'}).format(new Date(value)) : '—';
 export function zonedParts(date, timezone) {
@@ -88,4 +88,12 @@ export function dueTasks(state, now = new Date()) {
 export const sourceUrl = value => {
   try { const u=new URL(value);return u.protocol==='https:' && ['drive.google.com','docs.google.com','www.facebook.com','facebook.com','github.com'].includes(u.hostname) ? u.href : ''; }
   catch { return ''; }
+};
+export const newsUrl = value => {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && !u.username && !u.password && (!u.port || u.port === '443')
+      && u.hostname.includes('.') && !/^(?:127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(u.hostname)
+      && !/(?:\.local|\.localhost|\.internal)$/.test(u.hostname) ? u.href : '';
+  } catch { return ''; }
 };

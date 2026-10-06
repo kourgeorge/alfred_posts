@@ -7,6 +7,7 @@ import tempfile
 from config import Config
 from studio.media import MediaService
 from studio.service import Studio
+from studio.settings import capture_settings
 from studio.store import GitHubStore
 
 
@@ -23,6 +24,7 @@ def main():
             os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"] = key_path
         store = GitHubStore()
         store.initialize()
+        store.change(capture_settings)
         app = Studio(store, lambda: MediaService(Config.from_env(require_google=False), uploads=store))
         command = os.environ.get("STUDIO_COMMAND", "").strip()
         if command:

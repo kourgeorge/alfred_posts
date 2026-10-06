@@ -6,11 +6,12 @@ import './language-picker.css';
 import { languagePicker, bindLanguagePicker } from './language-picker.js';
 import { icon } from './icons.js';
 import defaultPrompts from '../prompts.json';
+import captionStyles from '../caption_styles.json';
 import * as github from './api.js';
 import { demoState, demoCommand } from './demo.js';
 import { activityItems, filterActivity } from './activity.js';
 import { fileDetails, uploadFile, downloadUpload } from './uploads.js';
-import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, dueTasks, inZone, zonedParts, sourceUrl } from './utils.js';
+import { escape as e, dayNames, typeNames, editable, formatDate, nextOccurrence, scheduleRun, dueTasks, inZone, zonedParts, sourceUrl, newsUrl } from './utils.js';
 
 const root = document.querySelector('#app');
 let config = {gateway: ''};
@@ -18,6 +19,7 @@ let state = {drafts: [], schedules: [], operations: []};
 let demo = false;
 let signedIn = false;
 let selectedType = 'image';
+let selectedCaptionStyle = 'default';
 let selectedDraft = null;
 let pending = null;
 let secretNames = new Set();
@@ -148,16 +150,25 @@ function draftRow(draft) {
 
 function empty(ico,title,description) { return `<div class="empty-state">${icon(ico)}<strong>${title}</strong><p>${description}</p></div>`; }
 
+function captionStylePicker() {
+  return `<div class="caption-style-picker"><label for="caption-style">${e(t("Caption style"))}</label>
+    <select id="caption-style" aria-describedby="caption-style-hint caption-style-scope" ${blocked()}>${Object.entries(captionStyles).map(([value,style])=>`<option value="${value}" ${selectedCaptionStyle===value?'selected':''}>${e(t(style.label))}</option>`).join('')}</select>
+    <p id="caption-style-hint" class="field-hint" role="status">${e(t(captionStyles[selectedCaptionStyle].description))}</p>
+    <p id="caption-style-scope" class="field-hint">${e(t(sourceMode==='library'&&selectedType==='question'?"Styles the next introduction. The question and answers stay unchanged.":"Applies to the next caption you generate."))}</p></div>`;
+}
+
 function sourcePanel() {
   const selection = selectedUpload;
   return `<div class="panel source-panel"><div class="step-title"><span>01</span><h2>${e(t("Choose your source"))}</h2></div>
-    <div class="source-picker" role="group" aria-label="${e(t("Post source"))}">${[['library',t("Existing resources")],['upload',t("Upload image or video")]].map(([mode,label])=>`<button type="button" data-action="source-mode" data-mode="${mode}" aria-pressed="${sourceMode===mode}" class="${sourceMode===mode?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
-    ${sourceMode==='library'?`<div class="format-picker">${Object.keys(typeNames).map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}" ${blocked()}>${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:t("A photo from your Drive folder, with a fresh Hebrew caption."),video:t("A video from your Drive folder, with a caption to match."),question:t("A question and its image from Google Forms, with the original answers.")}[selectedType]}</p><button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t({image:'Generate photo draft',video:'Generate video draft',question:'Generate question draft'}[selectedType]))}</button>`:
+    <div class="source-picker" role="group" aria-label="${e(t("Post source"))}">${[['library',t("Existing resources")],['upload',t("Upload image or video")],['news',t("News Post")]].map(([mode,label])=>`<button type="button" data-action="source-mode" data-mode="${mode}" aria-pressed="${sourceMode===mode}" class="${sourceMode===mode?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
+    ${sourceMode==='news'?`<div class="news-intro"><span class="type-icon news">${icon('news')}</span><h3>${e(t("Find a story worth sharing"))}</h3><p>${e(t("Search recent news from Israel and around the world. Alfred picks an interesting story and prepares a caption with the original article or video preview."))}</p><div class="news-topics">${['Road safety & accidents','Rules & regulations','New cars & technology','Transport & mobility'].map(topic=>`<span>${e(t(topic))}</span>`).join('')}</div></div>${captionStylePicker()}<button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t("Find news & prepare post"))}</button><p class="field-hint">${e(t("Searches the past week. Review the story, source date, and caption before publishing."))}</p>`:
+    sourceMode==='library'?`<div class="format-picker">${['image','video','question'].map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}" ${blocked()}>${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:t("A photo from your Drive folder, with a fresh Hebrew caption."),video:t("A video from your Drive folder, with a caption to match."),question:t("A question and its image from Google Forms, with the original answers.")}[selectedType]}</p>${captionStylePicker()}<button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t({image:'Generate photo draft',video:'Generate video draft',question:'Generate question draft'}[selectedType]))}</button>`:
     `<form id="upload-form"><div class="upload-dropzone"><label for="media-upload">${e(t("Choose an image or video"))}</label><input id="media-upload" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" ${blocked()} />
     <div class="camera-options"><p class="camera-divider">${e(t("Or use your camera"))}</p><div class="camera-actions"><button type="button" class="btn secondary" data-action="capture-photo" aria-controls="camera-photo" ${blocked()}>${icon('camera')}${e(t("Take photo"))}</button><button type="button" class="btn secondary" data-action="capture-video" aria-controls="camera-video" ${blocked()}>${icon('video')}${e(t("Record video"))}</button></div><input id="camera-photo" type="file" accept="image/*" capture="environment" aria-label="${e(t("Take photo"))}" hidden ${blocked()} /><input id="camera-video" type="file" accept="video/*" capture="environment" aria-label="${e(t("Record video"))}" hidden ${blocked()} /></div>
     <p class="field-hint">${e(t("Or drop a file here. JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB."))}</p></div>
     ${selection?`<div class="upload-selection">${selection.details.type==='image'?`<img src="${e(selection.url)}" alt="${e(t("Selected upload preview"))}" />`:`<video src="${e(selection.url)}" controls playsinline preload="metadata" aria-label="${e(t("Selected upload preview"))}"></video>`}<div><strong>${e(selection.file.name)}</strong><span>${selection.file.size<1024*1024?`${Math.ceil(selection.file.size/1024)} KB`:`${(selection.file.size/1024/1024).toFixed(1)} MB`} · ${e(typeNames[selection.details.type])}</span><button type="button" class="text-link" data-action="remove-upload" ${blocked()}>${e(t("Remove file"))}</button></div></div>`:''}
     <label for="upload-description">${e(t("Describe your image or video"))}</label><textarea id="upload-description" dir="auto" maxlength="2000" rows="3" required placeholder="${e(t("For example: Practicing parallel parking with a beginner."))}" ${blocked()}>${e(uploadDescription)}</textarea><p class="field-hint">${e(t("A few words are enough. Your description and saved writing instructions guide the caption."))}</p>
+    ${captionStylePicker()}
     <div id="upload-error" class="form-error" role="alert">${e(uploadError)}</div>
     ${uploading?`<div id="upload-progress" role="status">${e(t('Saving your upload… {progress}%',{progress:number(uploading.progress)}))}</div><button type="button" class="text-link" data-action="cancel-upload">${e(t("Cancel upload"))}</button>`:''}
     <button class="btn primary generate-btn" type="submit" ${blocked()||(!selection||!uploadDescription.trim()?'disabled':'')}>${icon('spark')} ${e(t("Generate caption"))}</button></form>`}
@@ -174,14 +185,25 @@ function composer() {
     <div class="panel caption-panel"><div class="step-title"><span>02</span><h2>${e(t("Make it yours"))}</h2>${draft?badge(draft.status):''}</div>
     ${available.length?`<label for="draft-select">${e(t("Open a saved draft"))}</label><select id="draft-select"><option value="">${e(t("Choose a draft…"))}</option>${available.map(d=>`<option value="${e(d.id)}" ${d.id===selectedDraft?'selected':''}>${e(typeNames[d.type])} · ${e(d.source.name)}</option>`).join('')}</select>`:''}
     ${draft?`<div class="source-label">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer" aria-label="${e(t("Open original media"))}">${icon('external')}</a>`:''}</div><label for="caption">${e(t("Post caption"))} <span>${e(t("Hebrew supported"))}</span></label><textarea id="caption" dir="auto" maxlength="12000" ${canEdit&&!pending?'':'readonly'}>${e(draftText(draft))}</textarea><div class="caption-meta"><span id="caption-count">${e(t('{count} characters',{count:number(draftText(draft).length)}))}</span><span id="edit-state">${edits.has(draft.id)?t("Unsaved changes"):t("Saved draft")}</span></div>
+    ${draft.caption_style&&draft.caption_style!=='default'&&Object.hasOwn(captionStyles,draft.caption_style)?`<p class="field-hint draft-style">${e(t('Generated style: {style}',{style:t(captionStyles[draft.caption_style].label)}))}</p>`:''}
+    ${draft.type==='news'?newsSource(draft):''}
     ${draft.error?`<div class="form-error">${e(t(sourceMessage(draft.error)))}</div>`:''}${draft.status==='scheduled'?`<div class="inline-note">${icon('calendar')} ${e(t('Scheduled for {date}',{date:formatDate(draft.scheduled_at)}))}</div>`:''}
     ${canEdit?`<div class="editor-actions"><button class="text-link" data-action="revert-edits" ${blocked()}>${e(t("Revert edits"))}</button><button class="btn secondary" data-action="save-draft" ${blocked()}>${icon('check')} ${e(t("Save draft"))}</button><button class="icon-btn danger" data-action="delete-draft" aria-label="${e(t("Delete draft"))}" ${blocked()}>${icon('trash')}</button></div>`:''}`:empty('edit',t("A fresh draft starts here"),t("Generate a post or open a saved draft to edit the caption."))}</div>
     ${draft&&canEdit?`<div class="publish-actions"><button class="btn secondary" data-action="schedule-draft" ${blocked()}>${icon('calendar')} ${draft.status==='scheduled'?t("Change time"):t("Schedule post")}</button><button class="btn primary" data-action="publish" ${blocked()}>${icon('send')} ${e(t("Publish now"))}</button></div>${draft.status==='scheduled'?`<button class="text-link cancel-schedule" data-action="cancel-draft" ${blocked()}>${e(t("Move back to drafts"))}</button>`:''}`:''}</section>
     <section class="preview-column"><div class="preview-heading"><span class="eyebrow">${e(t("LIVE PREVIEW"))}</span><span><b class="facebook-mini">f</b> Facebook</span></div><article class="facebook-card"><div class="facebook-header"><div class="avatar">AK</div><div><strong>מורה נהיגה - אלפרד קור</strong><span>${demo?t("Demo preview"):t("Post preview")} · ${icon('globe')}</span></div><span class="facebook-more">···</span></div><div id="preview-caption" class="preview-caption" dir="auto">${draft?e(draftText(draft)):t("Your next post starts with an idea.\nGenerate a draft to see it here.")}</div>${mediaPreview(draft)}<div class="facebook-reactions"><span>♡</span><span>${e(t("Like"))}</span><span>${e(t("Comment"))}</span><span>${e(t("Share"))}</span></div></article><p class="preview-note">${icon('info')} ${e(t("A close preview of your post. Facebook may display media and line breaks differently."))}</p>${draft?.facebook_url?`<a class="btn secondary" href="${e(sourceUrl(draft.facebook_url))}" target="_blank" rel="noopener noreferrer">${e(t("View on Facebook"))} ${icon('external')}</a>`:''}</section></div>`;
 }
 
+function newsSource(draft) {
+  return `<div class="news-source"><strong>${e(t("News source"))}</strong><a href="${e(newsUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer">${e(draft.source.publisher)} ${icon('external')}</a><span>${e(t(draft.source.region==='israel'?'Israel':'World'))} · ${e(t('Source date: {date}',{date:formatDate(draft.source.source_date)}))}</span><p>${e(t("Shares the original article or video as a link. Facebook controls its final preview."))}</p></div>`;
+}
+
 function mediaPreview(draft) {
   if (!draft) return `<div class="media-placeholder">${icon('image')}<span>${e(t("Your media will appear here"))}</span></div>`;
+  if (draft.type==='news') {
+    const preview=draft.preview;
+    const image=preview&&(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(preview)||demo&&preview==='./road.svg');
+    return `<a class="news-link-preview" href="${e(newsUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer">${image?`<div class="news-preview-image"><img class="post-image" src="${e(preview)}" alt="${e(draft.source.name)}" />${draft.source.media_kind==='video'?`<span class="news-video-play">${icon('play')}</span>`:''}</div>`:''}<div class="news-link-copy"><span>${e(draft.source.publisher)}</span><strong dir="auto">${e(draft.source.name)}</strong><small>${e(t(draft.source.media_kind==='video'?'Watch original video':'Read original article'))} ${icon('external')}</small></div></a>`;
+  }
   if (draft.type==='video') return `<div class="video-preview"><div class="video-pattern"></div><span class="video-play">${icon('play')}</span><strong dir="auto">${e(draft.source.name)}</strong><span>${draft.source.upload_id?t("Your uploaded video"):demo?t("Sample video preview"):t("Your selected Drive video")}</span>${draft.source.upload_id||sourceUrl(draft.source.url)?`<button class="btn" data-action="watch-video" data-id="${e(draft.id)}">${e(t("Watch selected video"))} ${icon('external')}</button>`:''}</div>`;
   if (demo && draft.source.upload_id && uploadedMedia.has(draft.source.upload_id)) return `<img class="post-image" src="${e(uploadedMedia.get(draft.source.upload_id))}" alt="${e(draft.source.name)}" />`;
   const src = draft.preview;
@@ -251,9 +273,9 @@ function promptsPage() {
   return `<div class="settings-layout"><form id="prompt-form" class="panel prompt-panel">
     <div class="section-title"><div><h2>${e(t("Caption instructions"))}</h2><p>${e(t("A separate prompt for each post format."))}</p></div>${icon('spark')}</div>
     <div class="format-picker" role="group" aria-label="${e(t("Prompt format"))}">${Object.entries(typeNames).map(([type,label])=>`<button type="button" class="format-option ${promptType===type?'selected':''}" data-action="prompt-type" data-type="${type}" aria-pressed="${promptType===type}" ${blocked()}>${icon(type)}${label}${promptEdits.has(type)?`<span class="prompt-unsaved" title="${e(t("Unsaved changes"))}">${e(t("Edited"))}</span>`:''}</button>`).join('')}</div>
-    <label for="prompt-text">${e(t({image:'Photo prompt',video:'Video prompt',question:'Question prompt'}[promptType]))}</label><textarea id="prompt-text" name="prompt" dir="auto" maxlength="8000" rows="16" required spellcheck="false" ${pending?'readonly':''}>${e(text)}</textarea>
+    <label for="prompt-text">${e(t({image:'Photo prompt',video:'Video prompt',question:'Question prompt',news:'News prompt'}[promptType]))}</label><textarea id="prompt-text" name="prompt" dir="auto" maxlength="8000" rows="16" required spellcheck="false" ${pending?'readonly':''}>${e(text)}</textarea>
     <div class="caption-meta"><span id="prompt-count">${e(t('{count} / {limit} characters',{count:number(text.length),limit:number(8000)}))}</span><span id="prompt-state" role="status">${edit?t("Unsaved changes"):text===defaultPrompts[promptType]?t("Default prompt"):t("Saved custom prompt")}</span></div>
-    <p class="field-hint">${promptType==='question'?t("This prompt controls the introduction. The original question, every answer choice, and course links are added automatically."):t("The current date and selected media details are added automatically. Write instructions for the caption you want.")}</p>
+    <p class="field-hint">${promptType==='news'?t("News captions use the selected reporting. The source link and accuracy rules are added automatically."):promptType==='question'?t("This prompt controls the introduction. The original question, every answer choice, and course links are added automatically."):t("The current date and selected media details are added automatically. Write instructions for the caption you want.")}</p>
     <div class="prompt-tools"><button type="button" class="text-link" data-action="default-prompt" ${blocked()}>${icon('refresh')} ${e(t("Restore default"))}</button><button type="button" class="text-link" data-action="discard-prompt" ${pending||!edit?'disabled':''}>${e(t("Discard changes"))}</button></div>
     <div class="settings-save prompt-save"><span>${icon('lock')} ${e(t("Saved privately for future posts."))}</span><button type="submit" class="btn primary" ${pending||!edit||!text.trim()?'disabled':''}>${icon('check')} ${e(t("Save prompt"))}</button></div>
   </form><aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('spark')}</span><h3>${e(t("Make it sound like you."))}</h3><p>${e(t("Describe your preferred language, tone, caption length, contact details, and call to action."))}</p><p>${e(t("Save each format separately. Restoring a default takes effect after you save it."))}</p></div><div class="panel security-note"><h3>${e(t("Save. Generate. Preview."))}</h3><p>${e(t("New drafts and recurring posts use the latest saved prompt. Existing drafts keep the captions you already reviewed."))}</p><button id="prompt-preview" type="button" class="btn secondary" data-action="new" data-type="${promptType}" ${pending||edit?'disabled':''}>${icon('edit')} ${e(t("Preview a new post"))}</button><p>${demo?t("Demo saves are temporary. Generated demo captions remain sample text."):t("A generation already in progress keeps the prompt it started with.")}</p></div></aside></div>`;
@@ -261,11 +283,34 @@ function promptsPage() {
 
 function connectionsPage() {
   const configured = name => `<span data-secret="${name}" class="secret-state ${secretNames.has(name)||demo?'set':''}">${demo?t("Demo"):!secretsLoaded?t("Not checked"):secretNames.has(name)?t("Configured"):t("Not configured")}</span>`;
-  return `<div class="settings-layout"><form id="settings-form" class="settings-form"><section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol facebook-symbol">f</span><div><h2>Facebook</h2><p>${e(t("The page you’re sharing with."))}</p></div></div>${configured('FB_PAGE_ACCESS_TOKEN')}</div><label for="fb-token">${e(t("Page access token"))}</label><input id="fb-token" type="password" name="FB_PAGE_ACCESS_TOKEN" placeholder="${e(t("Paste a new page access token"))}" autocomplete="new-password" /><p class="field-hint">${e(t("Needs pages_manage_posts and pages_read_engagement permission."))}</p><label for="fb-page">${e(t("Facebook page ID"))} <span>${e(t("Optional update"))}</span></label><input id="fb-page" name="FB_PAGE_ID" placeholder="168846083148109" inputmode="numeric" autocomplete="off" /></section>
-    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>${e(t("A little help finding the right words."))}</p></div></div>${configured('OPENAI_API_KEY')}</div><label for="openai-key">${e(t("API key"))}</label><input id="openai-key" type="password" name="OPENAI_API_KEY" placeholder="${e(t("Paste a new OpenAI API key"))}" autocomplete="new-password" /><p class="field-hint">${e(t("Used to generate Hebrew captions. API usage is billed to your OpenAI account."))}</p><label for="openai-model">${e(t("Caption model"))} <span>${e(t("Optional update · all formats"))}</span></label><input id="openai-model" name="MODEL" placeholder="gpt-4.1-mini" autocomplete="off" /></section>
-    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol google-symbol">${icon('image')}</span><div><h2>Google Drive & Forms</h2><p>${e(t("Your library of photos, videos, and questions."))}</p></div></div>${configured('GOOGLE_SERVICE_ACCOUNT_JSON')}</div><details><summary>${e(t("Update content sources"))} ${icon('chevron')}</summary><label for="google-key">${e(t("Service account JSON"))}</label><textarea id="google-key" name="GOOGLE_SERVICE_ACCOUNT_JSON" class="credential-textarea" placeholder="${e(t("Paste the new service account JSON"))}" spellcheck="false" autocomplete="off"></textarea><p class="field-hint">${e(t("Share each media folder and question form with the service account email."))}</p>${[['DRIVE_FOLDER_ID',t("Photo folder ID")],['DRIVE_FOLDER_ID_VIDEO',t("Video folder ID")],['DRIVE_FOLDER_ID_QUESTIONS',t("Question forms folder ID")]].map(([name,label])=>`<label for="${name}">${label}</label><input id="${name}" name="${name}" placeholder="${e(t("Leave empty to keep the current folder"))}" autocomplete="off" />`).join('')}</details></section>
-    <div id="settings-error" class="form-error" role="alert">${e(t(sourceMessage(secretsError)))}</div><div class="settings-save"><span>${icon('lock')} ${e(t("Blank fields keep existing values."))}</span><button type="submit" class="btn primary">${icon('check')} ${e(t("Save credentials"))}</button></div></form>
+  const field = (id,name,label) => `<label for="${id}">${label}</label><input id="${id}" name="${name}" data-setting value="${e(state.connection_settings?.values?.[name]||'')}" placeholder="${state.connection_settings?t("Not configured"):t("Load saved values to view")}" ${name==='FB_PAGE_ID'?'inputmode="numeric"':''} autocomplete="off" ${blocked()} />`;
+  const secret = (id,name,label,placeholder) => `<label for="${id}">${label}</label><div class="secret-input"><input id="${id}" type="password" name="${name}" placeholder="${placeholder}" autocomplete="new-password" ${blocked()} /><button type="button" class="text-link secret-toggle" data-action="toggle-secret" data-target="${id}" aria-label="${e(t('Show {label} replacement',{label:label.toLowerCase()}))}" aria-controls="${id}" aria-pressed="false" ${blocked()}>${e(t("Show"))}</button></div>`;
+  return `<div class="settings-values-info"><div><strong>${e(t("Saved connection settings"))}</strong><p id="settings-values-status">${connectionSettingsStatus()}</p><p>${e(t("Show reveals only a replacement key or token you type."))}</p></div><button type="button" class="btn secondary" data-action="refresh-settings" ${blocked()}>${icon('refresh')} ${e(t("Refresh saved values"))}</button></div>
+    <div class="settings-layout"><form id="settings-form" class="settings-form"><section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol facebook-symbol">f</span><div><h2>Facebook</h2><p>${e(t("The page you’re sharing with."))}</p></div></div>${configured('FB_PAGE_ACCESS_TOKEN')}</div>${secret('fb-token','FB_PAGE_ACCESS_TOKEN',t("Page access token"),t("Paste a new page access token"))}<p class="field-hint">${e(t("Needs pages_manage_posts and pages_read_engagement permission."))}</p>${field('fb-page','FB_PAGE_ID',t("Facebook page ID"))}</section>
+    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>${e(t("A little help finding the right words."))}</p></div></div>${configured('OPENAI_API_KEY')}</div>${secret('openai-key','OPENAI_API_KEY',t("API key"),t("Paste a new OpenAI API key"))}<p class="field-hint">${e(t("Used to generate Hebrew captions. API usage is billed to your OpenAI account."))}</p>${[['OPENAI_MODEL',t("Photo caption model")],['OPENAI_MODEL_VIDEO',t("Video caption model")],['OPENAI_MODEL_QUESTION',t("Question caption model")]].map(([name,label])=>field(name,name,label)).join('')}</section>
+    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol news-symbol">${icon('news')}</span><div><h2>Tavily</h2><p>${e(t("Recent stories, ready to share."))}</p></div></div>${configured('TAVILY_API_KEY')}</div>${secret('tavily-key','TAVILY_API_KEY',t("Tavily API key"),t("Paste a new Tavily API key"))}<p class="field-hint">${e(t("Used to search news and find article images. Search usage is billed to your Tavily account."))}</p></section>
+    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol google-symbol">${icon('image')}</span><div><h2>Google Drive & Forms</h2><p>${e(t("Your library of photos, videos, and questions."))}</p></div></div>${configured('GOOGLE_SERVICE_ACCOUNT_JSON')}</div>${[['DRIVE_FOLDER_ID',t("Photo folder ID")],['DRIVE_FOLDER_ID_VIDEO',t("Video folder ID")],['DRIVE_FOLDER_ID_QUESTIONS',t("Question forms folder ID")]].map(([name,label])=>field(name,name,label)).join('')}<details><summary>${e(t("Replace service account"))} ${icon('chevron')}</summary><label for="google-key">${e(t("Service account JSON"))}</label><textarea id="google-key" name="GOOGLE_SERVICE_ACCOUNT_JSON" class="credential-textarea" placeholder="${e(t("Paste the new service account JSON"))}" spellcheck="false" autocomplete="off" ${blocked()}></textarea><p class="field-hint">${e(t("Share each media folder and question form with the service account email."))}</p></details></section>
+    <div id="settings-error" class="form-error" role="alert">${e(t(sourceMessage(secretsError)))}</div><div class="settings-save"><span>${icon('lock')} ${e(t("Blank fields keep existing values."))}</span><button type="submit" class="btn primary" ${blocked()}>${icon('check')} ${e(t("Save credentials"))}</button></div></form>
     <aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('lock')}</span><h3>${e(t("Private by design."))}</h3><p>${e(t("Credentials are encrypted in your browser and saved in your private repository’s GitHub Secrets."))}</p><p>${e(t("They’re never saved in this website or returned to the browser. To change a key, simply enter a replacement."))}</p><div class="soft-note">${icon('check')} ${e(t("No database. No extra account."))}</div></div><div class="panel connection-panel"><span class="eyebrow">${e(t("YOUR CONNECTION"))}</span><h3>${icon('github')} GitHub Actions</h3><p class="repo-name">${e(demo?t("Demo workspace"):github.repoName())}</p><span class="connection-inline"><i></i>${demo?t("Sample data only"):t("Password session active")}</span><button class="btn secondary" data-action="logout">${icon('lock')} ${e(t("Lock studio"))}</button></div><div class="plain-note">${icon('info')} ${e(t("Saving credentials affects future runs. A workflow already in progress keeps its current keys."))}</div></aside></div>`;
+}
+
+function connectionSettingsStatus() {
+  return state.connection_settings?.updated_at
+    ? e(t('Page, folder and model values from the last worker check: {date}.',{date:formatDate(state.connection_settings.updated_at)}))
+    : t("Use Refresh saved values to load your page, folder and model settings. Keys and tokens remain private.");
+}
+
+function updateConnectionSettings() {
+  // Polling may fill untouched fields, but must preserve edits and replacement secrets.
+  const form=document.querySelector('#settings-form');
+  if(!form)return;
+  form.querySelectorAll('[data-setting]').forEach(input=> {
+    if(input.value !== input.defaultValue)return;
+    const value=state.connection_settings?.values?.[input.name]||'';
+    input.defaultValue=value;input.value=value;
+    input.placeholder=state.connection_settings?t("Not configured"):t("Load saved values to view");
+  });
+  document.querySelector('#settings-values-status').innerHTML=connectionSettingsStatus();
 }
 
 const displayState = () => JSON.stringify([state, activityItems(state).map(item=>[item.id,item.status])]);
@@ -319,6 +364,7 @@ function lockStudio() {
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
   editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
+  selectedCaptionStyle='default';
   promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();window.scrollTo(0,0);
 }
 window.addEventListener('studio-locked', lockStudio);
@@ -356,6 +402,7 @@ async function sync() {
   polling=true;
   try {
     state=await github.readState();
+    updateConnectionSettings();
     if (pending) {
       const op=state.operations.find(x=>x.id===pending.id);
       if (op?.status === 'running') {pending.phase='running';updatePending();}
@@ -365,7 +412,7 @@ async function sync() {
         else {
           if(old.promptType)promptEdits.delete(old.promptType);
           if(op.result && state.drafts.some(d=>d.id===op.result)) {
-            selectedDraft=op.result;selectedType=currentDraft().type;edits.delete(op.result);editRevisions.delete(op.result);
+            selectedDraft=op.result;selectedType=currentDraft().type;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;edits.delete(op.result);editRevisions.delete(op.result);
             if(old.openResult) location.hash='create';
           }
           toast(old.success);
@@ -390,7 +437,7 @@ async function command(payload,label,success) {
       await new Promise(resolve=>setTimeout(resolve,450));
       if(!signedIn||!demo||pending?.id!==id)return;
       const result=demoCommand(state,{...payload,id});
-      if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;edits.delete(result);editRevisions.delete(result);}
+      if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;edits.delete(result);editRevisions.delete(result);}
       if(payload.action==='recover_missed' && result) location.hash='create';
       if(payload.action==='save_prompt')promptEdits.delete(payload.type);
       pending=null;render();toast(t('{message} (demo only)',{message:t(sourceMessage(success))}));
@@ -423,6 +470,7 @@ async function generateUpload() {
   if(pending||uploading)return;
   const selection=selectedUpload;
   const description=uploadDescription.trim();
+  const captionStyle=selectedCaptionStyle;
   if(!selection||!description||description.length>2000) {
     uploadError=t("Choose an image or video and describe it in a few words.");render();return;
   }
@@ -436,7 +484,7 @@ async function generateUpload() {
     if(uploading!==job||!signedIn)return;
     uploadedMedia.set(selection.id,selection.url);
     uploading=null;
-    await command({action:'generate_upload',type:selection.details.type,upload_id:selection.id,description,
+    await command({action:'generate_upload',type:selection.details.type,upload_id:selection.id,description,caption_style:captionStyle,
       ...(demo?{demo_upload:selection.manifest}:{})},t("Writing your caption…"),t("Your uploaded post is ready to review"));
   } catch(error) {
     if(uploading!==job)return;
@@ -475,7 +523,7 @@ function closeModal() { mediaRequest?.abort();mediaRequest=null;document.querySe
 
 function scheduleModal(id) {
   const schedule=state.schedules.find(s=>s.id===id) || {name:'',type:'image',time:'09:00',timezone:'Asia/Jerusalem',mode:'draft',days:[0,1,2,3,4],enabled:true};
-  modal(id?t("Edit your rhythm"):t("Make consistency simple"),t("A recurring time for your next great post."),`<form id="schedule-form" data-id="${e(id||'')}"><label for="schedule-name">${e(t("Schedule name"))}</label><input id="schedule-name" name="name" dir="auto" value="${e(schedule.name)}" placeholder="${e(t("e.g. Morning driving tips"))}" maxlength="100" required /><div class="form-grid"><div><label for="schedule-type">${e(t("Post format"))}</label><select id="schedule-type" name="type">${Object.keys(typeNames).map(type=>`<option value="${type}" ${schedule.type===type?'selected':''}>${typeNames[type]}</option>`).join('')}</select></div><div><label for="schedule-time">${e(t("Preferred time"))}</label><input id="schedule-time" type="time" name="time" value="${e(schedule.time)}" required /></div></div><label>${e(t("Repeat on"))}</label><div class="day-picker">${dayNames().map((day,i)=>`<label><input type="checkbox" name="days" value="${i}" ${schedule.days.includes(i)?'checked':''}/><span>${day}</span></label>`).join('')}</div><label for="schedule-zone">${e(t("Timezone"))}</label><input id="schedule-zone" name="timezone" value="${e(schedule.timezone)}" list="timezones" required /><datalist id="timezones"><option value="Asia/Jerusalem"><option value="Europe/London"><option value="America/New_York"><option value="UTC"></datalist><label for="schedule-mode">${e(t("When it’s time"))}</label><select id="schedule-mode" name="mode"><option value="draft" ${schedule.mode==='draft'?'selected':''}>${e(t("Prepare a draft for me to review"))}</option><option value="publish" ${schedule.mode==='publish'?'selected':''}>${e(t("Generate and publish automatically"))}</option></select><p class="field-hint" id="mode-hint">${schedule.mode==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.")}</p><div id="schedule-error" class="form-error" role="alert"></div><div class="modal-actions">${id?`<button type="button" class="icon-btn danger" data-action="delete-schedule" data-id="${e(id)}" aria-label="${e(t("Delete schedule"))}">${icon('trash')}</button>`:''}<button type="button" class="btn secondary" data-action="close-modal">${e(t("Cancel"))}</button><button type="submit" class="btn primary">${icon('check')} ${e(t("Save schedule"))}</button></div></form>`);
+  modal(id?t("Edit your rhythm"):t("Make consistency simple"),t("A recurring time for your next great post."),`<form id="schedule-form" data-id="${e(id||'')}"><label for="schedule-name">${e(t("Schedule name"))}</label><input id="schedule-name" name="name" dir="auto" value="${e(schedule.name)}" placeholder="${e(t("e.g. Morning driving tips"))}" maxlength="100" required /><div class="form-grid"><div><label for="schedule-type">${e(t("Post format"))}</label><select id="schedule-type" name="type">${['image','video','question'].map(type=>`<option value="${type}" ${schedule.type===type?'selected':''}>${typeNames[type]}</option>`).join('')}</select></div><div><label for="schedule-time">${e(t("Preferred time"))}</label><input id="schedule-time" type="time" name="time" value="${e(schedule.time)}" required /></div></div><label>${e(t("Repeat on"))}</label><div class="day-picker">${dayNames().map((day,i)=>`<label><input type="checkbox" name="days" value="${i}" ${schedule.days.includes(i)?'checked':''}/><span>${day}</span></label>`).join('')}</div><label for="schedule-zone">${e(t("Timezone"))}</label><input id="schedule-zone" name="timezone" value="${e(schedule.timezone)}" list="timezones" required /><datalist id="timezones"><option value="Asia/Jerusalem"><option value="Europe/London"><option value="America/New_York"><option value="UTC"></datalist><label for="schedule-mode">${e(t("When it’s time"))}</label><select id="schedule-mode" name="mode"><option value="draft" ${schedule.mode==='draft'?'selected':''}>${e(t("Prepare a draft for me to review"))}</option><option value="publish" ${schedule.mode==='publish'?'selected':''}>${e(t("Generate and publish automatically"))}</option></select><p class="field-hint" id="mode-hint">${schedule.mode==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.")}</p><div id="schedule-error" class="form-error" role="alert"></div><div class="modal-actions">${id?`<button type="button" class="icon-btn danger" data-action="delete-schedule" data-id="${e(id)}" aria-label="${e(t("Delete schedule"))}">${icon('trash')}</button>`:''}<button type="button" class="btn secondary" data-action="close-modal">${e(t("Cancel"))}</button><button type="submit" class="btn primary">${icon('check')} ${e(t("Save schedule"))}</button></div></form>`);
 }
 
 document.addEventListener('submit', async event=> {
@@ -518,14 +566,17 @@ document.addEventListener('submit', async event=> {
   if(form.id==='settings-form') {
     const submit=form.querySelector('[type=submit]');
     try {
-      const values=Object.fromEntries([...data.entries()].map(([k,v])=>[k,v.trim()]).filter(([,v])=>v));
-      if(!Object.keys(values).length) throw new Error(t("Enter at least one new value to save."));
+      const values=Object.fromEntries([...data.entries()].map(([k,v])=>[k,v.trim()]).filter(([k,v])=>v&&(!form.elements[k].hasAttribute('data-setting')||v!==form.elements[k].defaultValue)));
+      if(!Object.keys(values).length) throw new Error(t("Change a setting or enter a replacement credential to save."));
       if(values.GOOGLE_SERVICE_ACCOUNT_JSON) {const parsed=JSON.parse(values.GOOGLE_SERVICE_ACCOUNT_JSON);if(!parsed.private_key||!parsed.client_email||parsed.type!=='service_account')throw new Error(t("Enter a valid Google service account JSON file."));}
       if(values.FB_PAGE_ID&&!/^\d+$/.test(values.FB_PAGE_ID)) throw new Error(t("The Facebook page ID should contain only numbers."));
-      if(values.MODEL) {for(const field of ['OPENAI_MODEL','OPENAI_MODEL_VIDEO','OPENAI_MODEL_QUESTION'])values[field]=values.MODEL;delete values.MODEL;}
       submit.disabled=true;submit.textContent=t("Saving securely…");document.querySelector('[data-language]').disabled=true;
       if(!demo) await github.saveSecrets(values);
-      Object.keys(values).forEach(k=>secretNames.add(k));secretsLoaded=true;secretsError='';form.reset();render();toast(demo?t("Credentials simulated. Nothing was saved."):t("Credentials saved securely in GitHub Secrets"));
+      Object.keys(values).forEach(k=>secretNames.add(k));secretsLoaded=true;secretsError='';form.reset();
+      const changedSettings=Object.fromEntries(Object.entries(values).filter(([name])=>form.elements[name].hasAttribute('data-setting')));
+      if(demo&&Object.keys(changedSettings).length) state.connection_settings={values:{...state.connection_settings?.values,...changedSettings},updated_at:new Date().toISOString()};
+      render();toast(demo?t("Credentials simulated. Nothing was saved."):t("Credentials saved securely in GitHub Secrets"));
+      if(!demo&&Object.keys(changedSettings).length) await command({action:'refresh'},t("Refreshing saved connection settings…"),t("Saved connection settings refreshed"));
     } catch(error) {const target=document.querySelector('#settings-error');if(target)target.textContent=t(sourceMessage(error.message));else toast(error.message,true);submit.disabled=false;submit.innerHTML=icon('check')+(" "+t("Save credentials"));document.querySelector('[data-language]').disabled=false;}
   }
 });
@@ -558,8 +609,12 @@ document.addEventListener('input',event=> {
   }
 });
 document.addEventListener('change',event=> {
+  if(event.target.id==='caption-style'&&!pending&&!uploading&&Object.hasOwn(captionStyles,event.target.value)) {
+    selectedCaptionStyle=event.target.value;
+    document.querySelector('#caption-style-hint').textContent=t(captionStyles[selectedCaptionStyle].description);
+  }
   if(['media-upload','camera-photo','camera-video'].includes(event.target.id))selectUpload(event.target.files[0]);
-  if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;render();}
+  if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;render();}
   if(event.target.id==='schedule-mode') document.querySelector('#mode-hint').textContent=event.target.value==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.");
 });
 
@@ -576,6 +631,17 @@ document.addEventListener('click',async event=> {
   if(!button||button.disabled) return;
   const action=button.dataset.action;
   if(uploading&&!['logout','menu','close-menu','cancel-upload'].includes(action))return;
+  if(action==='toggle-secret') {
+    const input=document.getElementById(button.dataset.target);
+    const show=input.type==='password';input.type=show?'text':'password';
+    button.textContent=show?t("Hide"):t("Show");button.setAttribute('aria-pressed',String(show));
+    button.setAttribute('aria-label',t(show?'Hide {label} replacement':'Show {label} replacement',{label:input.labels[0].textContent.toLowerCase()}));
+  }
+  if(action==='refresh-settings') {
+    const form=document.querySelector('#settings-form');
+    if([...form.elements].some(input=>input.name&&input.value!==input.defaultValue))return toast(t("Save or clear your changes before refreshing saved values."));
+    await command({action:'refresh'},t("Loading saved connection settings…"),t("Saved connection settings refreshed"));
+  }
   if(action==='cancel-upload') {uploading?.controller.abort();uploading=null;uploadError=t("Upload cancelled. You can try again.");render();}
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
   if(action==='logout') lockStudio();
@@ -590,7 +656,7 @@ document.addEventListener('click',async event=> {
   if(action==='discard-prompt') {promptEdits.delete(promptType);render();}
   if(action==='menu') setMobileNav(!mobileNav);
   if(action==='close-menu') setMobileNav(false);
-  if(action==='source-mode') {sourceMode=button.dataset.mode;uploadError='';render();}
+  if(action==='source-mode') {sourceMode=button.dataset.mode;if(sourceMode==='news')selectedType='news';else if(selectedType==='news')selectedType=sourceMode==='upload'&&selectedUpload?selectedUpload.details.type:'image';uploadError='';render();}
   if(action==='capture-photo'||action==='capture-video') {
     if(pending||uploading)return;
     const input=document.getElementById(action==='capture-photo'?'camera-photo':'camera-video');
@@ -598,10 +664,10 @@ document.addEventListener('click',async event=> {
     input.click();
   }
   if(action==='remove-upload') {clearUpload();uploadError='';render();}
-  if(action==='new') {sourceMode='library';selectedDraft=null;selectedType=button.dataset.type||'image';navigate('create');}
+  if(action==='new') {selectedDraft=null;selectedType=button.dataset.type||'image';sourceMode=selectedType==='news'?'news':'library';navigate('create');}
   if(action==='type') {selectedType=button.dataset.type;selectedDraft=null;render();}
-  if(action==='open-draft') {selectedDraft=button.dataset.id;selectedType=currentDraft().type;navigate('create');}
-  if(action==='generate') await command({action:'generate',type:selectedType},t("Creating your draft…"),t("Your draft is ready to review"));
+  if(action==='open-draft') {selectedDraft=button.dataset.id;selectedType=currentDraft().type;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;navigate('create');}
+  if(action==='generate') await command({action:'generate',type:sourceMode==='news'?'news':selectedType,caption_style:selectedCaptionStyle},t(sourceMode==='news'?"Searching news and preparing your post…":"Creating your draft…"),t("Your draft is ready to review"));
   if(action==='revert-edits') {edits.delete(selectedDraft);editRevisions.delete(selectedDraft);render();}
   if(action==='save-draft') await command(draftCommand('save_draft'),t("Saving your draft…"),t("Draft saved"));
   if(action==='publish') {

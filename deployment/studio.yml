@@ -39,6 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           STUDIO_COMMAND: ${{ inputs.command }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
           OPENAI_MODEL_VIDEO: ${{ secrets.OPENAI_MODEL_VIDEO || 'gpt-4.1-mini' }}
           OPENAI_MODEL_QUESTION: ${{ secrets.OPENAI_MODEL_QUESTION || 'gpt-4.1-mini' }}

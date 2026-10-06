@@ -53,7 +53,7 @@ test('only fixed repository endpoints and approved service secrets are available
     assert.equal(response.headers.get('Cache-Control'), 'no-store');
     assert.equal(calls[0].url, 'https://api.github.com/repos/kourgeorge/alfred_posts_automation/contents/state.json?ref=studio-state');
     assert.equal(calls[0].options.headers.Authorization, `Bearer ${env.GITHUB_TOKEN}`);
-    const command = {id:'request-123',action:'generate',type:'image'};
+    const command = {id:'request-123',action:'generate',type:'image',caption_style:'funny'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:command}), env)).status, 204);
     assert.deepEqual(JSON.parse(calls[1].options.body), {ref:'main',inputs:{command:JSON.stringify(command)}});
     const prompt = {id:'prompt-save-123',action:'save_prompt',type:'question',prompt:'Write a short intro. שלום',revision:0};
@@ -65,12 +65,17 @@ test('only fixed repository endpoints and approved service secrets are available
     const recover = {id:'recover-missed-123',action:'recover_missed',missed_id:'missed-run-123'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:recover}), env)).status, 204);
     assert.deepEqual(JSON.parse(calls.at(-1).options.body), {ref:'main',inputs:{command:JSON.stringify(recover)}});
-    const uploaded = {id:'upload-generate-123',action:'generate_upload',type:'image',upload_id:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',description:'Parking practice'};
+    const uploaded = {id:'upload-generate-123',action:'generate_upload',type:'image',upload_id:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',description:'Parking practice',caption_style:'professional'};
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:uploaded}), env)).status, 204);
     assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), uploaded);
+    const news = {id:'news-generate-123',action:'generate',type:'news',caption_style:'neutral'};
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:news}), env)).status, 204);
+    assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), news);
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{...prompt,type:'news'}}), env)).status, 204);
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
+    assert.equal((await worker.fetch(request('/api/secrets/TAVILY_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
     const count = calls.length;
     for (const path of ['/repos/another/repository', '/api/secrets/GITHUB_TOKEN', '/api/secrets/INITIAL_HISTORY', '/api/secrets/%2e%2e'])
       assert.equal((await worker.fetch(request(path, {method:'PUT',token,value:{}}), env)).status, 404);

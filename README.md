@@ -1,7 +1,7 @@
 # Alfred Studio & Facebook posting scripts
 
 **[Open Alfred Studio](https://kourgeorge.github.io/alfred_posts/)** — preview and edit
-photo, video, and question posts; publish on demand; schedule one-time and recurring
+photo, video, question, and news posts; choose caption styles; publish on demand; schedule one-time and recurring
 posts; update API credentials. See **[STUDIO.md](STUDIO.md)** for access-key setup,
 private GitHub Actions automation, deployment, and development.
 

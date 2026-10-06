@@ -10,9 +10,26 @@ from openai import OpenAI
 from config import Config
 
 DEFAULT_PROMPTS = json.loads(Path(__file__).with_name("prompts.json").read_text(encoding="utf-8"))
+CAPTION_STYLES = json.loads(Path(__file__).with_name("caption_styles.json").read_text(encoding="utf-8"))
 SYSTEM_PROMPT_IMAGE = DEFAULT_PROMPTS["image"]
 SYSTEM_PROMPT_VIDEO = DEFAULT_PROMPTS["video"]
 SYSTEM_PROMPT_QUESTION = DEFAULT_PROMPTS["question"]
+
+
+def caption_prompt(post_type: str, prompt: str | None, style: str = "default") -> str | None:
+    """Apply a per-draft tone without changing the saved writing instructions."""
+    if not isinstance(style, str) or style not in CAPTION_STYLES:
+        raise ValueError("Choose a valid caption style.")
+    if style == "default":
+        return prompt
+    selected = CAPTION_STYLES[style]
+    return (prompt or DEFAULT_PROMPTS[post_type]) + (
+        f"\n\nCaption style for this draft: {selected['label']}.\n{selected['instruction']}\n"
+        "Apply this style to tone and phrasing only. If earlier tone instructions conflict, "
+        "use this style for this draft. Keep the requested language, facts, required details, "
+        "links and calls to action. Do not invent facts, quotations, testimonials or real events "
+        "to achieve the style. For quizzes, style only the introduction and never reveal or hint at the answer."
+    )
 
 
 def _today(config: Config) -> str:

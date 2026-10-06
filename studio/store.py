@@ -18,7 +18,7 @@ def now_iso():
 
 def empty_state():
     return {"version": 1, "updated_at": now_iso(), "drafts": [], "schedules": [],
-            "operations": [], "posted": {"image": [], "video": [], "question": []}}
+            "operations": [], "posted": {"image": [], "video": [], "question": [], "news": []}}
 
 
 class GitHubStore:

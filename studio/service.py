@@ -8,11 +8,13 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
+from content import caption_prompt
 from studio.scheduler import TYPES, due_slot, parse_future, validate_schedule
 from studio.missed import capture_missed, find_missed, remember
 from studio.store import now_iso
 from studio.uploads import validate_description, validate_id
 
+POST_TYPES = (*TYPES, "news")
 
 def safe_error(error):
     if isinstance(error, ValueError):
@@ -60,8 +62,8 @@ class Studio:
             self._media = self.media_factory()
         return self._media
 
-    def generate(self, post_type, draft_id, schedule_id=None, upload_id=None, description=None):
-        if post_type not in TYPES:
+    def generate(self, post_type, draft_id, schedule_id=None, upload_id=None, description=None, caption_style="default"):
+        if post_type not in POST_TYPES:
             raise ValueError("Unknown post type.")
         state, _ = self.store.read()
         existing = next((d for d in state["drafts"] if d["id"] == draft_id), None)
@@ -71,7 +73,7 @@ class Studio:
             raise ValueError("You have 30 unfinished drafts. Publish or delete some before creating more.")
         used = state["posted"].get(post_type, []) + [d["source"]["key"] for d in state["drafts"]
                if d["type"] == post_type and d["status"] != "deleted"]
-        prompt = state.get("prompts", {}).get(post_type)
+        prompt = caption_prompt(post_type, state.get("prompts", {}).get(post_type), caption_style)
         if upload_id:
             validate_id(upload_id)
             description = validate_description(description)
@@ -81,7 +83,7 @@ class Studio:
         else:
             prepared = self.media.prepare(post_type, used, prompt=prompt)
         draft = {"id": draft_id, "type": post_type, "status": "draft", "revision": 1,
-                 "created_at": now_iso(), "schedule_id": schedule_id, **prepared}
+                 "created_at": now_iso(), "schedule_id": schedule_id, "caption_style": caption_style, **prepared}
 
         def save(state):
             if not any(d["id"] == draft_id for d in state["drafts"]):
@@ -123,8 +125,9 @@ class Studio:
             for missed in state.get("missed_runs", []):
                 if missed.get("draft_id") == item["id"]:
                     missed.update(status=item["status"], resolved_at=now_iso())
-            if item["source"]["key"] not in state["posted"][item["type"]]:
-                state["posted"][item["type"]].append(item["source"]["key"])
+            posted = state["posted"].setdefault(item["type"], [])
+            if item["source"]["key"] not in posted:
+                posted.append(item["source"]["key"])
         self.store.change(finish)
         if draft["type"] == "video":
             self.refresh_videos()
@@ -182,7 +185,7 @@ class Studio:
             return draft_id
         if action == "save_prompt":
             kind, prompt = command.get("type"), command.get("prompt")
-            if kind not in TYPES:
+            if kind not in POST_TYPES:
                 raise ValueError("Unknown post type.")
             if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 8000:
                 raise ValueError("The prompt must contain 1–8,000 characters.")
@@ -194,11 +197,12 @@ class Studio:
                 revisions[kind] = revisions.get(kind, 0) + 1
             return self.store.change(save_prompt)
         if action == "generate":
-            return self.generate(command.get("type"), command["id"], command.get("schedule_id"))
+            return self.generate(command.get("type"), command["id"], command.get("schedule_id"),
+                                 caption_style=command.get("caption_style", "default"))
         if action == "generate_upload":
             validate_id(command.get("upload_id"))
             return self.generate(command.get("type"), command["id"], upload_id=command["upload_id"],
-                                 description=command.get("description"))
+                                 description=command.get("description"), caption_style=command.get("caption_style", "default"))
         if action == "publish":
             return self.publish(command)
         if action in ("save_draft", "schedule_draft", "cancel_draft"):

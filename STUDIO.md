@@ -78,6 +78,8 @@ The gateway can also run as a standard Cloudflare Worker with these three secret
 - **Video:** selects a Drive video under 50 MB and generates a matching caption.
 - **Question:** selects an illustrated question from Google Forms. The original
   question and every answer option are inserted exactly; AI writes only the introduction.
+- **News Post:** searches recent Israeli and international transport news and
+  prepares an attributed caption with the selected article/video's preview.
 - Generate a draft, edit its caption, and review the Facebook preview.
 - **Save draft** keeps the edited text without publishing.
 - **Publish now** publishes that draft after the in-app confirmation.
@@ -91,6 +93,58 @@ saved content, full-post view, and Facebook link. Posts created directly on Face
 are not imported. Video playback uses an embedded Drive preview
 and may require your Google account to have access. Source checksums are verified
 before publishing; if a file or question changed after preview, create a fresh draft.
+
+### Choose a caption style
+
+Before generating a manual post, choose **Caption style**: **Neutral**, **Funny**,
+**Friendly**, **Professional**, **Educational**, **Motivational**, **Storytelling**,
+or **Promotional**. **Saved style** uses your existing writing instructions as-is.
+Each option includes a short description and works with Drive photos, videos,
+Google Forms questions, and your own uploads.
+
+The selected style changes the tone of the next generated caption, while retaining
+the saved instructions' language, content requirements, links, and accuracy rules.
+For questions, it applies only to the introduction; the source question and answers
+remain exact. The generated style is recorded on the draft for reference.
+Changing the picker does not rewrite a caption already generated or edited.
+Recurring schedules continue to use your saved instructions. Demo mode provides
+sample wording for each style without calling AI.
+
+### News Post
+
+In **Create a post**, choose **News Post**, choose a caption style, then select
+**Find news & prepare post**. Tavily searches the past week across Israeli and
+international news sources for road safety and accidents, regulation changes,
+new cars and technology, and public/general transportation. Alfred selects an
+interesting report, finds an image from that article, and writes an attributed
+Hebrew caption. Article pages with video are identified in the preview when their
+publisher supplies video metadata.
+
+Review the caption, linked source, and source date before publishing. Source dates
+come from Tavily and can reflect a page update, rather than the event's date.
+The model is instructed to distinguish proposals from enacted regulations and
+foreign rules from Israeli rules, and to cover accidents respectfully regardless
+of caption style. These are generation instructions, not independent fact-checking.
+The exact source title and link are appended by the worker.
+
+News posts publish the original article/video **link** with your reviewed caption;
+Facebook controls the final link-preview image or video presentation. Publisher
+media is not reuploaded. The dashboard saves a small JPEG preview, the source URL,
+and the source date. Already-used article URLs are skipped. News generation is
+manual; an already-reviewed news draft can use the existing one-time scheduling.
+Recurring news generation is not offered.
+
+Set **Settings → Tavily API key** to enable searches. The key is encrypted through
+the gateway and stored as `TAVILY_API_KEY` in the private automation repository's
+GitHub Secrets; it never enters public frontend configuration. The worker uses
+the existing photo caption model for news selection and writing. **AI prompts →
+News Post** customizes the news caption instructions.
+
+Deployment requires the frontend/Python source, updated gateway secret/prompt
+allowlists, and the `TAVILY_API_KEY` environment entry in `deployment/studio.yml`.
+Each generation makes four advanced Tavily searches and two model requests when
+a suitable story with a usable image is found. Failures appear in Activity and
+do not create or publish a post. Demo news is explicitly fictional sample content.
 
 ### Upload your own photo or video
 
@@ -180,7 +234,7 @@ post dates in the dashboard are shown in Israel time.
 
 ## AI prompts
 
-Open **Settings → AI prompts**, choose **Photo**, **Video**, or **Question**, edit
+Open **Settings → AI prompts**, choose **Photo**, **Video**, **Question**, or **News Post**, edit
 the instructions, and select **Save prompt**. Each format is saved separately.
 The save runs through the automation worker; wait for the saved confirmation.
 Prompts can contain up to 8,000 characters and support Hebrew and other languages.
@@ -210,6 +264,17 @@ apply to the private automation worker.
 Settings can replace the Facebook Page token, Page ID, OpenAI API key/model, Google
 service account JSON, and source folder IDs. Blank fields leave existing values in
 place. Existing secret values cannot be retrieved through the website.
+
+Page ID, folder IDs, and the caption model for each format appear as editable saved
+values. The worker copies only these seven non-secret fields into private state at
+the beginning of each run. **Refresh saved values** requests a worker check to load
+the current values; it does not publish posts. The timestamp shows when the values
+were read. Saving a changed field refreshes that snapshot automatically. Unchanged
+prefilled fields are not sent again when replacing a credential.
+
+**Show / Hide** on the Page token and OpenAI key fields reveals only the replacement
+typed in that field. Stored keys and tokens are never returned to the website, and
+replacement fields are cleared after a successful save or when locking the studio.
 
 The browser uses GitHub's public encryption key and libsodium sealed boxes to
 encrypt each replacement before sending it through the gateway to the GitHub Secrets API. Credentials

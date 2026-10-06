@@ -2,7 +2,7 @@ name: Publish website
 on:
   push:
     branches: [main]
-    paths: ['web/**', 'prompts.json', 'package*.json', 'vite.config.js', '.github/workflows/pages.yml']
+    paths: ['web/**', 'prompts.json', 'caption_styles.json', 'package*.json', 'vite.config.js', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read

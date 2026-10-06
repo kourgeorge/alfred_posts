@@ -90,14 +90,16 @@ test('a failed chunk upload retries with the same file and dispatches only its r
   const bytes=Buffer.concat([photo,Buffer.alloc(2*1024*1024,0)]);
   await page.getByLabel('Choose an image or video',{exact:true}).setInputFiles({name:'parking.png',mimeType:'image/png',buffer:bytes});
   await page.getByLabel('Describe your image or video',{exact:true}).fill('Parking with a beginner');
+  await page.getByLabel('Caption style',{exact:true}).selectOption('funny');
   await page.getByRole('button',{name:'Generate caption',exact:true}).click();
   await expect(page.locator('#upload-error')).toContainText('Temporary upload issue');
+  await expect(page.getByLabel('Caption style',{exact:true})).toHaveValue('funny');
   expect(requests.filter(r=>r.path==='/api/commands')).toHaveLength(0);
   await page.getByRole('button',{name:'Generate caption',exact:true}).click();
   await expect(page.locator('#caption')).toHaveValue('Caption from the supplied description');
   const sent=requests.find(r=>r.path==='/api/commands').value;
-  expect(Object.keys(sent).sort()).toEqual(['action','description','id','type','upload_id']);
-  expect(sent).toMatchObject({action:'generate_upload',type:'image',description:'Parking with a beginner'});
+  expect(Object.keys(sent).sort()).toEqual(['action','caption_style','description','id','type','upload_id']);
+  expect(sent).toMatchObject({action:'generate_upload',type:'image',description:'Parking with a beginner',caption_style:'funny'});
   expect(requests.filter(r=>r.path.endsWith('/parts/0')).map(r=>r.path)).toEqual([`/api/uploads/${sent.upload_id}/parts/0`,`/api/uploads/${sent.upload_id}/parts/0`]);
   expect(manifest.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
   expect(Buffer.concat([...parts.values()].map(content=>Buffer.from(content,'base64')))).toEqual(bytes);

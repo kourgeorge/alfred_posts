@@ -5,6 +5,17 @@ import requests
 from config import Config, WorkflowError
 
 
+def post_link_to_page(config: Config, link: str, message: str) -> dict:
+    """Share the publisher's article/video and its Facebook link preview."""
+    response = requests.post(
+        f"https://graph.facebook.com/{config.fb_graph_version}/{config.fb_page_id}/feed",
+        data={"message": message, "link": link, "access_token": config.fb_page_access_token}, timeout=60,
+    )
+    if not response.ok:
+        raise WorkflowError(f"Facebook post failed ({response.status_code}): {response.text}")
+    return response.json()
+
+
 def post_photo_to_page(config: Config, image_bytes: bytes, message: str) -> dict:
     """Publish a photo post from raw bytes (used for images downloaded from Drive)."""
     url = f"https://graph.facebook.com/{config.fb_graph_version}/{config.fb_page_id}/photos"

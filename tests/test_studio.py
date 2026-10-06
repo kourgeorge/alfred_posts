@@ -91,8 +91,11 @@ class StudioTest(unittest.TestCase):
         self.store.state["schedules"] = [{"id": "scheduled-prompt", "name": "Morning", "type": "image", "mode": "draft",
             "days": [4], "time": "09:00", "timezone": "Asia/Jerusalem", "enabled": True}]
         self.app.command({"id": "scheduled-prompt-save", "action": "save_prompt", "type": "image", "prompt": "Scheduled instructions", "revision": 0})
+        self.app.command({"id": "manual-funny-draft", "action": "generate", "type": "image", "caption_style": "funny"})
+        self.assertIn("Funny", self.media.last_prompt)
         self.app.tick(datetime(2026, 10, 2, 6, 37, tzinfo=timezone.utc))
         self.assertEqual(self.media.last_prompt, "Scheduled instructions")
+        self.assertEqual(self.store.state["drafts"][0]["caption_style"], "default")
         self.assertEqual(self.media.posts, [])
 
     def test_publish_uses_edited_caption_and_same_source(self):

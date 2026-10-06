@@ -1,5 +1,20 @@
 import { dueTasks, inZone } from './utils.js';
 
+const styleOpenings = {
+  neutral: 'נהיגה בטוחה מבוססת על תשומת לב ועל תרגול הרגלים נכונים.',
+  funny: 'המכונית עוד לא יודעת לקרוא מחשבות — מזל שיש לנו איתות 😉',
+  friendly: 'בואו ניקח רגע לדבר על ההרגלים הקטנים שעוזרים לנו בדרך 🙂',
+  professional: 'הכנה נכונה ותרגול עקבי הם מרכיבים חשובים בלימוד נהיגה אחראית.',
+  educational: 'טיפ ללמידה: נסו להסביר במילים שלכם את ההיגיון מאחורי כל כלל שאתם לומדים.',
+  motivational: 'כל תרגול הוא עוד הזדמנות ללמוד. מתקדמים בקצב שלכם, צעד אחר צעד 💪',
+  storytelling: 'דמיינו שאתם מתיישבים ברכב לקראת שיעור נהיגה. רגע לפני שמתחילים, יש זמן לעצור, לנשום ולהתכונן לדרך.',
+  promotional: 'רוצים להתכונן לתיאוריה בקצב שלכם? הצטרפו לקורס האונליין ונלמד יחד את הדרך 🚗',
+};
+
+function styledSample(text, style) {
+  return Object.hasOwn(styleOpenings, style) ? [styleOpenings[style], ...text.split('\n\n').slice(1)].join('\n\n') : text;
+}
+
 export function demoState() {
   const ago = days => new Date(Date.now() - days * 86400000).toISOString();
   const photo = { id: 'demo-photo', type: 'image', status: 'draft', revision: 1, created_at: ago(0),
@@ -17,7 +32,10 @@ export function demoState() {
       { id: 'demo-s1', name: 'Morning driving tips', type: 'image', mode: 'draft', days: [0, 2, 4], time: '09:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
       { id: 'demo-s2', name: 'The theory challenge', type: 'question', mode: 'publish', days: [1, 3, 6], time: '18:00', timezone: 'Asia/Jerusalem', enabled: true, starts_at: ago(0) },
       { id: 'demo-s3', name: 'A lesson for the weekend', type: 'video', mode: 'draft', days: [4], time: '10:30', timezone: 'Asia/Jerusalem', enabled: false },
-    ], operations: [], posted: { image: ['sample'], video: [], question: [] } };
+    ], operations: [], connection_settings: {updated_at:ago(0), values:{FB_PAGE_ID:'1234567890',
+      DRIVE_FOLDER_ID:'demo-photo-folder',DRIVE_FOLDER_ID_VIDEO:'demo-video-folder',DRIVE_FOLDER_ID_QUESTIONS:'demo-question-folder',
+      OPENAI_MODEL:'gpt-4.1-mini',OPENAI_MODEL_VIDEO:'gpt-4.1-mini',OPENAI_MODEL_QUESTION:'gpt-4.1-mini'}},
+    posted: { image: ['sample'], video: [], question: [] } };
 }
 
 export function demoCommand(state, command) {
@@ -26,10 +44,10 @@ export function demoCommand(state, command) {
   switch (command.action) {
     case 'generate_upload': {
       const upload=command.demo_upload;
-      state.drafts.unshift({id:command.id,type:command.type,status:'draft',revision:1,created_at:new Date().toISOString(),
+      state.drafts.unshift({id:command.id,type:command.type,status:'draft',revision:1,created_at:new Date().toISOString(),caption_style:command.caption_style??'default',
         source:{key:`upload:${command.upload_id}`,upload_id:command.upload_id,name:upload.name,mime:upload.mime,
           size:upload.size,parts:upload.parts,description:command.description},preview:null,
-        text:`${command.description}\n\nצעד קטן בדרך לנהיגה בטוחה יותר. 🚗\nמה אתם חושבים? שתפו בתגובות.\n\nhttps://test4u.teachable.com/\nwww.test4u.co.il`});
+        text:`${command.description}\n\n${Object.hasOwn(styleOpenings,command.caption_style)?styleOpenings[command.caption_style]:'צעד קטן בדרך לנהיגה בטוחה יותר. 🚗'}\nמה אתם חושבים? שתפו בתגובות.\n\nhttps://test4u.teachable.com/\nwww.test4u.co.il`});
       result=command.id;break;
     }
     case 'recover_missed': {
@@ -77,8 +95,14 @@ export function demoCommand(state, command) {
       break;
     }
     case 'generate': {
-      const sample = demoState().drafts.find(d => d.type === command.type);
-      state.drafts.unshift({...sample, id: command.id, created_at: new Date().toISOString()});
+      const sample = command.type==='news'?{
+        type:'news',status:'draft',revision:1,preview:'./road.svg',
+        source:{key:'demo-news',name:'דוגמה: תחבורה חכמה בדרך לעיר',url:'https://www.bbc.com/news/topics/cg41ylwvggnt',
+          publisher:'bbc.com',region:'world',source_date:new Date().toISOString(),media_kind:'image'},
+        text:'דוגמה בלבד: איך יכולה תחבורה חכמה לשנות את הדרך שלנו? 🚍\n\nזהו פוסט לדוגמה, ולא דיווח על אירוע אמיתי. במצב הרגיל אלפרד מחפש חדשות עדכניות, בוחר כתבה עם תמונה ומכין טקסט שמבוסס על המקור.\n\nמה הייתם רוצים לשפר בתחבורה באזור שלכם?\n\nhttps://www.bbc.com/news/topics/cg41ylwvggnt',
+      }:demoState().drafts.find(d => d.type === command.type);
+      state.drafts.unshift({...sample, id: command.id, created_at: new Date().toISOString(),
+        caption_style:command.caption_style??'default',text:styledSample(sample.text,command.caption_style)});
       result = command.id; break;
     }
     case 'save_draft': case 'schedule_draft': case 'cancel_draft':

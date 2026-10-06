@@ -9,6 +9,7 @@ const uploadFormats = {'image/jpeg':['image',['jpg','jpeg']], 'image/png':['imag
   'image/webp':['image',['webp']], 'video/mp4':['video',['mp4']], 'video/quicktime':['video',['mov']]};
 const encoder = new TextEncoder();
 const secrets = new Set(['FB_PAGE_ACCESS_TOKEN', 'FB_PAGE_ID', 'OPENAI_API_KEY',
+  'TAVILY_API_KEY',
   'OPENAI_MODEL', 'OPENAI_MODEL_VIDEO', 'OPENAI_MODEL_QUESTION',
   'GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID', 'DRIVE_FOLDER_ID_VIDEO', 'DRIVE_FOLDER_ID_QUESTIONS']);
 const actions = new Set(['generate', 'generate_upload', 'publish', 'save_draft', 'schedule_draft', 'cancel_draft',
@@ -210,7 +211,7 @@ export default {
           || typeof command.upload_id !== 'string' || !new RegExp(`^${UPLOAD_ID}$`).test(command.upload_id)
           || typeof command.description !== 'string' || !command.description.trim() || command.description.trim().length > 2000))
           throw new HttpError(400, 'Choose an uploaded photo or video and add a description of 1–2,000 characters.');
-        if (command.action === 'save_prompt' && (!['image', 'video', 'question'].includes(command.type)
+        if (command.action === 'save_prompt' && (!['image', 'video', 'question', 'news'].includes(command.type)
           || typeof command.prompt !== 'string' || !command.prompt.trim() || command.prompt.length > 8000
           || !Number.isInteger(command.revision) || command.revision < 0))
           throw new HttpError(400, 'Choose a post format and enter a prompt of 1–8,000 characters.');

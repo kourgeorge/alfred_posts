@@ -25,6 +25,7 @@ class Config:
     fb_page_access_token: str
     fb_graph_version: str
     timezone: str
+    tavily_api_key: str | None = None
 
     @classmethod
     def from_env(cls, *, require_google=True) -> "Config":
@@ -64,4 +65,5 @@ class Config:
             fb_page_access_token=require("FB_PAGE_ACCESS_TOKEN"),
             fb_graph_version=os.environ.get("FB_GRAPH_VERSION", "v23.0"),
             timezone=os.environ.get("TIMEZONE", "Asia/Jerusalem"),
+            tavily_api_key=os.environ.get("TAVILY_API_KEY") or None,
         )

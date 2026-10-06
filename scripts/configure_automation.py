@@ -52,6 +52,8 @@ def main():
         values["GOOGLE_SERVICE_ACCOUNT_JSON"] = Path(c.google_service_account_file).read_text()
     if c.google_api_key:
         values["GOOGLE_API_KEY"] = c.google_api_key
+    if c.tavily_api_key:
+        values["TAVILY_API_KEY"] = c.tavily_api_key
     for name, value in ([] if args.workflow_only else values.items()):
         subprocess.run(["gh", "secret", "set", name, "--repo", args.repository],
                        input=value, text=True, check=True, capture_output=True)
