@@ -39,7 +39,7 @@ for (const width of [1440,390]) test(`saved settings and replacement visibility 
   await openSettings(page);
   await expect(page.getByLabel('Facebook page ID',{exact:true})).toHaveValue('1234567890');
   await expect(page.getByLabel('Photo folder ID',{exact:true})).toHaveValue('demo-photo-folder');
-  await expect(page.getByLabel('Video caption model',{exact:true})).toHaveValue('different-video-model');
+  await expect(page.getByRole('button',{name:'Choose the model for all posts'})).toBeVisible();
   await expect(page.getByLabel('API key',{exact:true})).toHaveValue('');
   await expect(page.getByLabel('Page access token',{exact:true})).toHaveValue('');
   await page.getByLabel('API key',{exact:true}).fill('replacement-api-key');

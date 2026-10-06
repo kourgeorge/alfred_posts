@@ -12,9 +12,11 @@ from content import caption_prompt
 from studio.scheduler import TYPES, due_slot, parse_future, validate_schedule
 from studio.missed import capture_missed, find_missed, remember
 from studio.store import now_iso
+from studio.models import fetch_models, save_model
 from studio.uploads import validate_description, validate_id
 
 POST_TYPES = (*TYPES, "news")
+PROMPT_TYPES = (*POST_TYPES, "news_selection")
 
 def safe_error(error):
     if isinstance(error, ValueError):
@@ -80,6 +82,9 @@ class Studio:
             if post_type not in ("image", "video"):
                 raise ValueError("Choose a photo or video for your upload.")
             prepared = self.media.prepare_upload(post_type, upload_id, description, prompt=prompt)
+        elif post_type == "news":
+            prepared = self.media.prepare(post_type, used, prompt=prompt,
+                                          selection_prompt=state.get("prompts", {}).get("news_selection"))
         else:
             prepared = self.media.prepare(post_type, used, prompt=prompt)
         draft = {"id": draft_id, "type": post_type, "status": "draft", "revision": 1,
@@ -157,6 +162,11 @@ class Studio:
 
     def execute(self, command):
         action = command.get("action")
+        if action == "refresh_models":
+            catalog = fetch_models()
+            return self.store.change(lambda state: state.update(model_catalog=catalog))
+        if action == "save_model":
+            return save_model(self.store, command)
         if action == "run_due":
             # Use the same eligibility checks and reservations as the cron worker.
             # The request receipt tracks completion; posting results stay on drafts.
@@ -185,7 +195,7 @@ class Studio:
             return draft_id
         if action == "save_prompt":
             kind, prompt = command.get("type"), command.get("prompt")
-            if kind not in POST_TYPES:
+            if kind not in PROMPT_TYPES:
                 raise ValueError("Unknown post type.")
             if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 8000:
                 raise ValueError("The prompt must contain 1–8,000 characters.")

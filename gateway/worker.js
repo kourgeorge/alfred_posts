@@ -13,7 +13,7 @@ const secrets = new Set(['FB_PAGE_ACCESS_TOKEN', 'FB_PAGE_ID', 'OPENAI_API_KEY',
   'OPENAI_MODEL', 'OPENAI_MODEL_VIDEO', 'OPENAI_MODEL_QUESTION',
   'GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID', 'DRIVE_FOLDER_ID_VIDEO', 'DRIVE_FOLDER_ID_QUESTIONS']);
 const actions = new Set(['generate', 'generate_upload', 'publish', 'save_draft', 'schedule_draft', 'cancel_draft',
-  'delete_draft', 'save_schedule', 'toggle_schedule', 'delete_schedule', 'refresh', 'save_prompt', 'run_due', 'recover_missed']);
+  'delete_draft', 'save_schedule', 'toggle_schedule', 'delete_schedule', 'refresh', 'save_prompt', 'refresh_models', 'save_model', 'run_due', 'recover_missed']);
 const attempts = new Map();
 
 class HttpError extends Error {
@@ -211,10 +211,14 @@ export default {
           || typeof command.upload_id !== 'string' || !new RegExp(`^${UPLOAD_ID}$`).test(command.upload_id)
           || typeof command.description !== 'string' || !command.description.trim() || command.description.trim().length > 2000))
           throw new HttpError(400, 'Choose an uploaded photo or video and add a description of 1–2,000 characters.');
-        if (command.action === 'save_prompt' && (!['image', 'video', 'question', 'news'].includes(command.type)
+        if (command.action === 'save_prompt' && (!['image', 'video', 'question', 'news', 'news_selection'].includes(command.type)
           || typeof command.prompt !== 'string' || !command.prompt.trim() || command.prompt.length > 8000
           || !Number.isInteger(command.revision) || command.revision < 0))
           throw new HttpError(400, 'Choose a post format and enter a prompt of 1–8,000 characters.');
+        if (command.action === 'save_model' && (typeof command.model !== 'string'
+          || !/^[a-zA-Z0-9._-]{1,150}$/.test(command.model)
+          || !Number.isInteger(command.revision) || command.revision < 0))
+          throw new HttpError(400, 'Invalid model setting.');
         await github(env, '/actions/workflows/studio.yml/dispatches', {
           method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { command: JSON.stringify(command) } }),
         });

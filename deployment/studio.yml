@@ -33,6 +33,9 @@ jobs:
           python-version: '3.13'
           cache: pip
       - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Process studio command or scheduled posts
         run: python -m studio.runner
         env:

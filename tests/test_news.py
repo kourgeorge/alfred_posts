@@ -62,6 +62,8 @@ class NewsTest(TestCase):
         store.state["posted"].pop("news", None)  # Existing installations have only the older formats.
         store.state["prompts"] = {"news": "My saved news voice, in Hebrew."}
         app = Studio(store, lambda: MediaService(self.config))
+        app.command({"id": "save-news-selection", "action": "save_prompt", "type": "news_selection",
+                     "prompt": "Prioritize public transport in Israel.", "revision": 0})
         with patch("studio.news.requests.post", side_effect=self.api), \
                 patch("studio.news.media_preview", return_value=self.preview), patch("content.OpenAI") as ai:
             ai.return_value.chat.completions.create.side_effect = [
@@ -72,12 +74,17 @@ class NewsTest(TestCase):
             app.command(command)
             app.command(command)
         self.assertEqual(ai.return_value.chat.completions.create.call_count, 2)
+        ranking = ai.return_value.chat.completions.create.call_args_list[0].kwargs["messages"][0]["content"]
+        self.assertTrue(ranking.startswith("Prioritize public transport in Israel."))
+        self.assertIn('"ranked_ids"', ranking)
+        self.assertNotIn("Caption style for this draft", ranking)
         messages = ai.return_value.chat.completions.create.call_args.kwargs["messages"]
         self.assertIn("My saved news voice", messages[0]["content"])
         self.assertIn("Caption style for this draft: Funny", messages[0]["content"])
         self.assertIn("NEWS ACCURACY RULES override all tone instructions", messages[0]["content"])
         self.assertIn("The transport authority", messages[1]["content"])
-        self.assertEqual(store.state["prompts"], {"news": "My saved news voice, in Hebrew."})
+        self.assertEqual(store.state["prompts"], {"news": "My saved news voice, in Hebrew.",
+            "news_selection": "Prioritize public transport in Israel."})
         draft = store.state["drafts"][0]
         self.assertEqual(draft["caption_style"], "funny")
         self.assertEqual(draft["status"], "draft")

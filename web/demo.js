@@ -42,6 +42,13 @@ export function demoCommand(state, command) {
   const draft = state.drafts.find(d => d.id === command.draft_id);
   let result;
   switch (command.action) {
+    case 'refresh_models':
+      state.model_catalog={ids:['gpt-4.1-mini','gpt-4.1','gpt-5-mini'],refreshed_at:new Date().toISOString()};
+      break;
+    case 'save_model':
+      if(command.revision!==(state.ai_settings?.revision??0))throw new Error('The model changed in another session. Discard your change and choose again.');
+      state.ai_settings={model:command.model,revision:command.revision+1};
+      break;
     case 'generate_upload': {
       const upload=command.demo_upload;
       state.drafts.unshift({id:command.id,type:command.type,status:'draft',revision:1,created_at:new Date().toISOString(),caption_style:command.caption_style??'default',

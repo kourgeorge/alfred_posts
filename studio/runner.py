@@ -6,6 +6,7 @@ import tempfile
 
 from config import Config
 from studio.media import MediaService
+from studio.models import apply_model
 from studio.service import Studio
 from studio.settings import capture_settings
 from studio.store import GitHubStore
@@ -25,7 +26,8 @@ def main():
         store = GitHubStore()
         store.initialize()
         store.change(capture_settings)
-        app = Studio(store, lambda: MediaService(Config.from_env(require_google=False), uploads=store))
+        app = Studio(store, lambda: MediaService(
+            apply_model(Config.from_env(require_google=False), store.read()[0]), uploads=store))
         command = os.environ.get("STUDIO_COMMAND", "").strip()
         if command:
             app.command(json.loads(command))

@@ -60,10 +60,10 @@ class MediaService:
                            "sha256": item["sha256"], "size": item["size"], "mime": item["mime"],
                            "parts": item["parts"], "description": description}, "text": text, "preview": preview}
 
-    def prepare(self, post_type, posted, prompt=None):
+    def prepare(self, post_type, posted, prompt=None, *, selection_prompt=None):
         c = self.config
         if post_type == "news":
-            return NewsService(c).prepare(posted, prompt=prompt)
+            return NewsService(c).prepare(posted, prompt=prompt, selection_prompt=selection_prompt)
         if post_type == "question":
             item = drive.pick_question(c, posted_ids=set(posted))
             data = google_image(item["question"]["image"])

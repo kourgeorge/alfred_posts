@@ -72,11 +72,18 @@ test('only fixed repository endpoints and approved service secrets are available
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:news}), env)).status, 204);
     assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command), news);
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{...prompt,type:'news'}}), env)).status, 204);
+    assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{...prompt,type:'news_selection'}}), env)).status, 204);
+    for (const command of [{id:'models-refresh',action:'refresh_models'}, {id:'model-save',action:'save_model',model:'gpt-5-mini',revision:0}]) {
+      assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:command}), env)).status, 204);
+      assert.deepEqual(JSON.parse(JSON.parse(calls.at(-1).options.body).inputs.command),command);
+    }
     const status = await worker.fetch(request('/api/secrets', {token}), env);
     assert.deepEqual(await status.json(), {secrets:[{name:'OPENAI_API_KEY'}]});
     assert.equal((await worker.fetch(request('/api/secrets/OPENAI_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
     assert.equal((await worker.fetch(request('/api/secrets/TAVILY_API_KEY', {method:'PUT',token,value:{key_id:'123',encrypted_value:'YWJjZA=='}}), env)).status, 204);
     const count = calls.length;
+    for (const invalid of [{model:''},{model:'../../private'},{model:123},{model:'x'.repeat(151)},{revision:-1},{revision:null}])
+      assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{id:'invalid-model',action:'save_model',model:'gpt-5-mini',revision:0,...invalid}}), env)).status, 400);
     for (const path of ['/repos/another/repository', '/api/secrets/GITHUB_TOKEN', '/api/secrets/INITIAL_HISTORY', '/api/secrets/%2e%2e'])
       assert.equal((await worker.fetch(request(path, {method:'PUT',token,value:{}}), env)).status, 404);
     assert.equal((await worker.fetch(request('/api/commands', {method:'POST',token,value:{id:'123',action:'run_shell'}}), env)).status, 400);

@@ -78,6 +78,14 @@ class StudioTest(unittest.TestCase):
             self.app.command({"id": "prompt-save-2", "action": "save_prompt", "type": "image", "prompt": "Stale save", "revision": 0})
         self.assertEqual(self.store.state["prompts"]["image"], "First save")
 
+    def test_news_prompt_stages_have_independent_revisions(self):
+        for kind in ("news", "news_selection"):
+            self.app.command({"id": f"save-stage-{kind}", "action": "save_prompt", "type": kind, "prompt": f"Custom {kind}", "revision": 0})
+        with self.assertRaisesRegex(RuntimeError, "another session"):
+            self.app.command({"id": "stale-news", "action": "save_prompt", "type": "news_selection", "prompt": "Stale", "revision": 0})
+        self.assertEqual(self.store.state["prompt_revisions"], {"news": 1, "news_selection": 1})
+        self.assertEqual(self.store.state["prompts"], {"news": "Custom news", "news_selection": "Custom news_selection"})
+
     def test_bad_prompt_settings_do_not_save_or_require_provider_credentials(self):
         app = Studio(self.store, lambda: self.fail("Saving prompts must not initialize provider clients"))
         for i, prompt in enumerate([None, 123, "  ", "x" * 8001]):

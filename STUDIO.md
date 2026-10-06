@@ -136,9 +136,12 @@ Recurring news generation is not offered.
 
 Set **Settings → Tavily API key** to enable searches. The key is encrypted through
 the gateway and stored as `TAVILY_API_KEY` in the private automation repository's
-GitHub Secrets; it never enters public frontend configuration. The worker uses
-the existing photo caption model for news selection and writing. **AI prompts →
-News Post** customizes the news caption instructions.
+GitHub Secrets; it never enters public frontend configuration. The shared model
+in **Settings → AI model** handles both news selection and writing (the existing
+photo model remains the fallback until a shared model is saved). **AI prompts →
+News Post** has separate **Select news** and **Write caption** editors. Selection
+instructions control editorial priorities; the per-draft caption style affects
+writing only. **Edit news prompts** in the composer opens these editors.
 
 Deployment requires the frontend/Python source, updated gateway secret/prompt
 allowlists, and the `TAVILY_API_KEY` environment entry in `deployment/studio.yml`.
@@ -238,6 +241,9 @@ Open **Settings → AI prompts**, choose **Photo**, **Video**, **Question**, or 
 the instructions, and select **Save prompt**. Each format is saved separately.
 The save runs through the automation worker; wait for the saved confirmation.
 Prompts can contain up to 8,000 characters and support Hebrew and other languages.
+For News Post, save each stage independently: **Select news** ranks the search
+results; **Write caption** phrases the selected report. Search source/date filters,
+the ranking JSON contract, source links, and accuracy instructions still apply.
 
 **Restore default** loads the original instructions into the editor; select
 **Save prompt** to apply them. **Discard changes** reloads the current saved
@@ -259,14 +265,39 @@ newer instructions. Defaults in `prompts.json` are shared by the editor and Pyth
 generator. Standalone command-line posting uses those defaults; dashboard overrides
 apply to the private automation worker.
 
+## Shared AI model
+
+Open **Settings → AI model**, select **Refresh models**, choose a model, then
+**Save model**. The private worker runs `scripts/openai-models.mjs` with Node.js 22
+to fetch the current account's `GET https://api.openai.com/v1/models` list.
+Only model IDs and the retrieval timestamp return to the browser; the OpenAI key
+stays in GitHub Secrets. Refreshing may take a minute while Actions starts.
+
+The API does not return endpoint capabilities. Discovery filters standard GPT
+and reasoning model names to exclude specialized image/audio/search/Codex and
+known Responses-only variants. Before saving, the worker rechecks availability
+and makes a small Chat Completions request with the same message roles used for
+captions. This check incurs a small API charge. An unavailable/incompatible model
+or failed request leaves the previous setting active and preserves the selection
+for retry. Future model naming or capability changes may require updating the
+filter. Demo options are samples and make no OpenAI calls.
+
+The selected model and revision are saved in private `state.json`. It overrides
+the three legacy environment model settings for every Studio caption, upload,
+news-ranking request, and future scheduled generation. Until a choice is saved,
+the existing per-format models remain active. Existing drafts keep their text;
+a worker that already initialized generation keeps its model. Stale concurrent
+model edits are rejected. The standalone CLI keeps its environment configuration.
+
 ## Credentials
 
-Settings can replace the Facebook Page token, Page ID, OpenAI API key/model, Google
+Settings can replace the Facebook Page token, Page ID, OpenAI API key, Google
 service account JSON, and source folder IDs. Blank fields leave existing values in
 place. Existing secret values cannot be retrieved through the website.
 
-Page ID, folder IDs, and the caption model for each format appear as editable saved
-values. The worker copies only these seven non-secret fields into private state at
+Page ID and folder IDs appear as editable saved values. Models are managed in the
+separate **AI model** section. The worker copies seven allowlisted non-secret fields
+(including the legacy model values for migration) into private state at
 the beginning of each run. **Refresh saved values** requests a worker check to load
 the current values; it does not publish posts. The timestamp shows when the values
 were read. Saving a changed field refreshes that snapshot automatically. Unchanged

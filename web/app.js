@@ -38,6 +38,8 @@ let settingsView = 'connections';
 let promptType = 'image';
 let promptSnapshot = null;
 const promptEdits = new Map();
+let modelEdit = null;
+let modelSnapshotRevision = 0;
 let sourceMode = 'library';
 let selectedUpload = null;
 let uploadDescription = '';
@@ -161,7 +163,7 @@ function sourcePanel() {
   const selection = selectedUpload;
   return `<div class="panel source-panel"><div class="step-title"><span>01</span><h2>${e(t("Choose your source"))}</h2></div>
     <div class="source-picker" role="group" aria-label="${e(t("Post source"))}">${[['library',t("Existing resources")],['upload',t("Upload image or video")],['news',t("News Post")]].map(([mode,label])=>`<button type="button" data-action="source-mode" data-mode="${mode}" aria-pressed="${sourceMode===mode}" class="${sourceMode===mode?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
-    ${sourceMode==='news'?`<div class="news-intro"><span class="type-icon news">${icon('news')}</span><h3>${e(t("Find a story worth sharing"))}</h3><p>${e(t("Search recent news from Israel and around the world. Alfred picks an interesting story and prepares a caption with the original article or video preview."))}</p><div class="news-topics">${['Road safety & accidents','Rules & regulations','New cars & technology','Transport & mobility'].map(topic=>`<span>${e(t(topic))}</span>`).join('')}</div></div>${captionStylePicker()}<button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t("Find news & prepare post"))}</button><p class="field-hint">${e(t("Searches the past week. Review the story, source date, and caption before publishing."))}</p>`:
+    ${sourceMode==='news'?`<div class="news-intro"><span class="type-icon news">${icon('news')}</span><h3>${e(t("Find a story worth sharing"))}</h3><p>${e(t("Search recent news from Israel and around the world. Alfred picks an interesting story and prepares a caption with the original article or video preview."))}</p><div class="news-topics">${['Road safety & accidents','Rules & regulations','New cars & technology','Transport & mobility'].map(topic=>`<span>${e(t(topic))}</span>`).join('')}</div></div><button class="text-link" data-action="edit-news-prompts" ${blocked()}>${icon('edit')} ${e(t("Edit news prompts"))}</button>${captionStylePicker()}<button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t("Find news & prepare post"))}</button><p class="field-hint">${e(t("Searches the past week. Review the story, source date, and caption before publishing."))}</p>`:
     sourceMode==='library'?`<div class="format-picker">${['image','video','question'].map(type=>`<button class="format-option ${selectedType===type?'selected':''}" data-action="type" data-type="${type}" aria-pressed="${selectedType===type}" ${blocked()}>${icon(type)}${typeNames[type]}${selectedType===type?'<span class="selected-dot"></span>':''}</button>`).join('')}</div><p class="field-hint">${{image:t("A photo from your Drive folder, with a fresh Hebrew caption."),video:t("A video from your Drive folder, with a caption to match."),question:t("A question and its image from Google Forms, with the original answers.")}[selectedType]}</p>${captionStylePicker()}<button class="btn primary generate-btn" data-action="generate" ${blocked()}>${icon('spark')} ${e(t({image:'Generate photo draft',video:'Generate video draft',question:'Generate question draft'}[selectedType]))}</button>`:
     `<form id="upload-form"><div class="upload-dropzone"><label for="media-upload">${e(t("Choose an image or video"))}</label><input id="media-upload" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" ${blocked()} />
     <div class="camera-options"><p class="camera-divider">${e(t("Or use your camera"))}</p><div class="camera-actions"><button type="button" class="btn secondary" data-action="capture-photo" aria-controls="camera-photo" ${blocked()}>${icon('camera')}${e(t("Take photo"))}</button><button type="button" class="btn secondary" data-action="capture-video" aria-controls="camera-video" ${blocked()}>${icon('video')}${e(t("Record video"))}</button></div><input id="camera-photo" type="file" accept="image/*" capture="environment" aria-label="${e(t("Take photo"))}" hidden ${blocked()} /><input id="camera-video" type="file" accept="video/*" capture="environment" aria-label="${e(t("Record video"))}" hidden ${blocked()} /></div>
@@ -234,7 +236,7 @@ function operationName(action) {
   const names = {generate:'Generate caption',generate_upload:'Generate caption',publish:'Publish now',
     save_draft:'Save draft',delete_draft:'Delete draft',schedule_draft:'Schedule post',cancel_draft:'Move back to drafts',
     save_schedule:'Save schedule',toggle_schedule:'Schedule',delete_schedule:'Delete schedule',
-    save_prompt:'Save prompt',refresh:'Refresh status',run_due:'Run due tasks',recover_missed:'Prepare missed draft'};
+    save_prompt:'Save prompt',refresh_models:'Refresh models',save_model:'Save model',refresh:'Refresh status',run_due:'Run due tasks',recover_missed:'Prepare missed draft'};
   return t(names[action] || action.replaceAll('_',' '));
 }
 
@@ -262,23 +264,44 @@ function activityCard(item) {
 function settingsPage() {
   const prompts = settingsView === 'prompts';
   return `${heading(t("MAKE YOURSELF AT HOME"), prompts?t("Your voice, in every post."):t("The keys to your studio."), prompts?t("Shape the tone, language, and style of each kind of post."):t("Update your connections in one place. Saved keys stay private."))}
-    <div class="filter-bar settings-views" role="group" aria-label="${e(t("Settings sections"))}">${[['connections',t("Connections")],['prompts',t("AI prompts")]].map(([view,label])=>`<button data-action="settings-view" data-view="${view}" aria-pressed="${settingsView===view}" class="${settingsView===view?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
-    ${prompts?promptsPage():connectionsPage()}`;
+    <div class="filter-bar settings-views" role="group" aria-label="${e(t("Settings sections"))}">${[['connections',t("Connections")],['prompts',t("AI prompts")],['model',t("AI model")]].map(([view,label])=>`<button data-action="settings-view" data-view="${view}" aria-pressed="${settingsView===view}" class="${settingsView===view?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
+    ${prompts?promptsPage():settingsView==='model'?modelPage():connectionsPage()}`;
 }
 
 function promptsPage() {
   const edit=promptEdits.get(promptType);
+  const format=promptType==='news_selection'?'news':promptType;
   const text=edit?.text??state.prompts?.[promptType]??defaultPrompts[promptType];
   promptSnapshot={type:promptType,text,revision:edit?.revision??state.prompt_revisions?.[promptType]??0};
   return `<div class="settings-layout"><form id="prompt-form" class="panel prompt-panel">
     <div class="section-title"><div><h2>${e(t("Caption instructions"))}</h2><p>${e(t("A separate prompt for each post format."))}</p></div>${icon('spark')}</div>
-    <div class="format-picker" role="group" aria-label="${e(t("Prompt format"))}">${Object.entries(typeNames).map(([type,label])=>`<button type="button" class="format-option ${promptType===type?'selected':''}" data-action="prompt-type" data-type="${type}" aria-pressed="${promptType===type}" ${blocked()}>${icon(type)}${label}${promptEdits.has(type)?`<span class="prompt-unsaved" title="${e(t("Unsaved changes"))}">${e(t("Edited"))}</span>`:''}</button>`).join('')}</div>
-    <label for="prompt-text">${e(t({image:'Photo prompt',video:'Video prompt',question:'Question prompt',news:'News prompt'}[promptType]))}</label><textarea id="prompt-text" name="prompt" dir="auto" maxlength="8000" rows="16" required spellcheck="false" ${pending?'readonly':''}>${e(text)}</textarea>
+    <div class="format-picker" role="group" aria-label="${e(t("Prompt format"))}">${Object.entries(typeNames).map(([type,label])=>`<button type="button" class="format-option ${format===type?'selected':''}" data-action="prompt-type" data-type="${type==='news'?'news_selection':type}" aria-pressed="${format===type}" ${blocked()}>${icon(type)}${label}${promptEdits.has(type)||(type==='news'&&promptEdits.has('news_selection'))?`<span class="prompt-unsaved" title="${e(t("Unsaved changes"))}">${e(t("Edited"))}</span>`:''}</button>`).join('')}</div>
+    ${format==='news'?`<div class="filter-bar prompt-stages" role="group" aria-label="${e(t("News prompt stage"))}">${[['news_selection','Select news'],['news','Write caption']].map(([key,label])=>`<button type="button" data-action="prompt-type" data-type="${key}" class="${promptType===key?'selected':''}" aria-pressed="${promptType===key}" ${blocked()}>${e(t(label))}${promptEdits.has(key)?` · ${e(t("Edited"))}`:''}</button>`).join('')}</div>`:''}
+    <label for="prompt-text">${e(t({image:'Photo prompt',video:'Video prompt',question:'Question prompt',news:'News prompt',news_selection:'News selection prompt'}[promptType]))}</label><textarea id="prompt-text" name="prompt" dir="auto" maxlength="8000" rows="16" required spellcheck="false" ${pending?'readonly':''}>${e(text)}</textarea>
     <div class="caption-meta"><span id="prompt-count">${e(t('{count} / {limit} characters',{count:number(text.length),limit:number(8000)}))}</span><span id="prompt-state" role="status">${edit?t("Unsaved changes"):text===defaultPrompts[promptType]?t("Default prompt"):t("Saved custom prompt")}</span></div>
-    <p class="field-hint">${promptType==='news'?t("News captions use the selected reporting. The source link and accuracy rules are added automatically."):promptType==='question'?t("This prompt controls the introduction. The original question, every answer choice, and course links are added automatically."):t("The current date and selected media details are added automatically. Write instructions for the caption you want.")}</p>
+    <p class="field-hint">${promptType==='news_selection'?t("Tell Alfred which stories to prioritize: topics, local or global relevance, and editorial preferences. Search filters and the ranking output format are applied automatically. Caption style affects writing only."):promptType==='news'?t("News captions use the selected reporting. The source link and accuracy rules are added automatically."):promptType==='question'?t("This prompt controls the introduction. The original question, every answer choice, and course links are added automatically."):t("The current date and selected media details are added automatically. Write instructions for the caption you want.")}</p>
     <div class="prompt-tools"><button type="button" class="text-link" data-action="default-prompt" ${blocked()}>${icon('refresh')} ${e(t("Restore default"))}</button><button type="button" class="text-link" data-action="discard-prompt" ${pending||!edit?'disabled':''}>${e(t("Discard changes"))}</button></div>
     <div class="settings-save prompt-save"><span>${icon('lock')} ${e(t("Saved privately for future posts."))}</span><button type="submit" class="btn primary" ${pending||!edit||!text.trim()?'disabled':''}>${icon('check')} ${e(t("Save prompt"))}</button></div>
-  </form><aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('spark')}</span><h3>${e(t("Make it sound like you."))}</h3><p>${e(t("Describe your preferred language, tone, caption length, contact details, and call to action."))}</p><p>${e(t("Save each format separately. Restoring a default takes effect after you save it."))}</p></div><div class="panel security-note"><h3>${e(t("Save. Generate. Preview."))}</h3><p>${e(t("New drafts and recurring posts use the latest saved prompt. Existing drafts keep the captions you already reviewed."))}</p><button id="prompt-preview" type="button" class="btn secondary" data-action="new" data-type="${promptType}" ${pending||edit?'disabled':''}>${icon('edit')} ${e(t("Preview a new post"))}</button><p>${demo?t("Demo saves are temporary. Generated demo captions remain sample text."):t("A generation already in progress keeps the prompt it started with.")}</p></div></aside></div>`;
+  </form><aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('spark')}</span><h3>${e(t("Make it sound like you."))}</h3><p>${e(t("Describe your preferred language, tone, caption length, contact details, and call to action."))}</p><p>${e(t("Save each format separately. Restoring a default takes effect after you save it."))}</p></div><div class="panel security-note"><h3>${e(t("Save. Generate. Preview."))}</h3><p>${e(t("New drafts and recurring posts use the latest saved prompt. Existing drafts keep the captions you already reviewed."))}</p><button id="prompt-preview" type="button" class="btn secondary" data-action="new" data-type="${format}" ${pending||edit||(format==='news'&&(promptEdits.has('news')||promptEdits.has('news_selection')))?'disabled':''}>${icon('edit')} ${e(t("Preview a new post"))}</button><p>${demo?t("Demo saves are temporary. Generated demo captions remain sample text."):t("A generation already in progress keeps the prompt it started with.")}</p></div></aside></div>`;
+}
+
+function modelPage() {
+  modelSnapshotRevision=modelEdit?.revision??state.ai_settings?.revision??0;
+  const values=state.connection_settings?.values??{};
+  const legacy=[values.OPENAI_MODEL,values.OPENAI_MODEL_VIDEO,values.OPENAI_MODEL_QUESTION].filter(Boolean);
+  const current=state.ai_settings?.model??(legacy.length===3&&new Set(legacy).size===1?legacy[0]:'');
+  const selected=modelEdit?.model??current;
+  const catalog=state.model_catalog;
+  const ids=[...new Set([...(catalog?.ids??[]),current,selected].filter(Boolean))];
+  return `<div class="settings-layout"><section class="panel model-panel">
+    <div class="section-title"><div><h2>${e(t("One model for every post"))}</h2><p>${e(t("Used for photos, videos, questions, uploaded media, news selection and news captions, including scheduled generation."))}</p></div>${icon('spark')}</div>
+    <p id="model-list-status" class="field-hint" role="status">${catalog?e(t('Models retrieved from OpenAI: {date}.',{date:formatDate(catalog.refreshed_at)})):e(t("Refresh to load the text models available to your OpenAI account."))}</p>
+    <button type="button" class="btn secondary" data-action="refresh-models" ${blocked()}>${icon('refresh')} ${e(t("Refresh models"))}</button>
+    <label for="ai-model">${e(t("Shared OpenAI model"))}</label><select id="ai-model" dir="ltr" aria-describedby="model-help" ${blocked()}><option value="">${e(t("Choose a model"))}</option>${ids.map(id=>`<option value="${e(id)}" ${id===selected?'selected':''}>${e(id)}${!catalog?.ids.includes(id)?` (${e(t("current / saved choice"))})`:''}</option>`).join('')}</select>
+    <p id="model-help" class="field-hint">${e(t("The list includes text-model candidates. Saving checks compatibility with a small OpenAI request, which may incur a small API charge. Your current model stays active if the check fails."))}</p>
+    ${!state.ai_settings?.model?`<p class="field-hint">${e(t("Until you save a shared model, existing per-format settings remain active."))}</p>${legacy.length?`<p class="field-hint" dir="auto">${e(t("Photo"))}: <bdi>${e(values.OPENAI_MODEL||'—')}</bdi> · ${e(t("Video"))}: <bdi>${e(values.OPENAI_MODEL_VIDEO||'—')}</bdi> · ${e(t("Question"))}: <bdi>${e(values.OPENAI_MODEL_QUESTION||'—')}</bdi></p>`:''}`:`<p class="field-hint">${e(t("Active model"))}: <bdi>${e(current)}</bdi></p>`}
+    <div class="settings-save"><button type="button" class="text-link" data-action="discard-model" ${pending||!modelEdit?'disabled':''}>${e(t("Discard changes"))}</button><button type="button" class="btn primary" data-action="save-model" ${pending||!selected||(!modelEdit&&state.ai_settings?.model)?'disabled':''}>${icon('check')} ${e(t("Save model"))}</button></div>
+    </section><aside class="settings-aside"><div class="panel security-note"><h3>${e(t("Fresh from your OpenAI account"))}</h3><p>${e(t("Refresh uses your saved API key in the private worker. Only model names return to this page. Loading may take a minute while the worker starts."))}</p><p>${demo?e(t("Demo model options are samples. No OpenAI request is made.")):e(t("Saving affects future generation. Existing drafts and work already in progress keep their current content and model."))}</p></div></aside></div>`;
 }
 
 function connectionsPage() {
@@ -287,7 +310,7 @@ function connectionsPage() {
   const secret = (id,name,label,placeholder) => `<label for="${id}">${label}</label><div class="secret-input"><input id="${id}" type="password" name="${name}" placeholder="${placeholder}" autocomplete="new-password" ${blocked()} /><button type="button" class="text-link secret-toggle" data-action="toggle-secret" data-target="${id}" aria-label="${e(t('Show {label} replacement',{label:label.toLowerCase()}))}" aria-controls="${id}" aria-pressed="false" ${blocked()}>${e(t("Show"))}</button></div>`;
   return `<div class="settings-values-info"><div><strong>${e(t("Saved connection settings"))}</strong><p id="settings-values-status">${connectionSettingsStatus()}</p><p>${e(t("Show reveals only a replacement key or token you type."))}</p></div><button type="button" class="btn secondary" data-action="refresh-settings" ${blocked()}>${icon('refresh')} ${e(t("Refresh saved values"))}</button></div>
     <div class="settings-layout"><form id="settings-form" class="settings-form"><section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol facebook-symbol">f</span><div><h2>Facebook</h2><p>${e(t("The page you’re sharing with."))}</p></div></div>${configured('FB_PAGE_ACCESS_TOKEN')}</div>${secret('fb-token','FB_PAGE_ACCESS_TOKEN',t("Page access token"),t("Paste a new page access token"))}<p class="field-hint">${e(t("Needs pages_manage_posts and pages_read_engagement permission."))}</p>${field('fb-page','FB_PAGE_ID',t("Facebook page ID"))}</section>
-    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>${e(t("A little help finding the right words."))}</p></div></div>${configured('OPENAI_API_KEY')}</div>${secret('openai-key','OPENAI_API_KEY',t("API key"),t("Paste a new OpenAI API key"))}<p class="field-hint">${e(t("Used to generate Hebrew captions. API usage is billed to your OpenAI account."))}</p>${[['OPENAI_MODEL',t("Photo caption model")],['OPENAI_MODEL_VIDEO',t("Video caption model")],['OPENAI_MODEL_QUESTION',t("Question caption model")]].map(([name,label])=>field(name,name,label)).join('')}</section>
+    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol openai-symbol">${icon('spark')}</span><div><h2>OpenAI</h2><p>${e(t("A little help finding the right words."))}</p></div></div>${configured('OPENAI_API_KEY')}</div>${secret('openai-key','OPENAI_API_KEY',t("API key"),t("Paste a new OpenAI API key"))}<p class="field-hint">${e(t("Used to generate Hebrew captions. API usage is billed to your OpenAI account."))}</p><button type="button" class="text-link" data-action="settings-view" data-view="model" ${blocked()}>${e(t("Choose the model for all posts"))} ${icon('chevron')}</button></section>
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol news-symbol">${icon('news')}</span><div><h2>Tavily</h2><p>${e(t("Recent stories, ready to share."))}</p></div></div>${configured('TAVILY_API_KEY')}</div>${secret('tavily-key','TAVILY_API_KEY',t("Tavily API key"),t("Paste a new Tavily API key"))}<p class="field-hint">${e(t("Used to search news and find article images. Search usage is billed to your Tavily account."))}</p></section>
     <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol google-symbol">${icon('image')}</span><div><h2>Google Drive & Forms</h2><p>${e(t("Your library of photos, videos, and questions."))}</p></div></div>${configured('GOOGLE_SERVICE_ACCOUNT_JSON')}</div>${[['DRIVE_FOLDER_ID',t("Photo folder ID")],['DRIVE_FOLDER_ID_VIDEO',t("Video folder ID")],['DRIVE_FOLDER_ID_QUESTIONS',t("Question forms folder ID")]].map(([name,label])=>field(name,name,label)).join('')}<details><summary>${e(t("Replace service account"))} ${icon('chevron')}</summary><label for="google-key">${e(t("Service account JSON"))}</label><textarea id="google-key" name="GOOGLE_SERVICE_ACCOUNT_JSON" class="credential-textarea" placeholder="${e(t("Paste the new service account JSON"))}" spellcheck="false" autocomplete="off" ${blocked()}></textarea><p class="field-hint">${e(t("Share each media folder and question form with the service account email."))}</p></details></section>
     <div id="settings-error" class="form-error" role="alert">${e(t(sourceMessage(secretsError)))}</div><div class="settings-save"><span>${icon('lock')} ${e(t("Blank fields keep existing values."))}</span><button type="submit" class="btn primary" ${blocked()}>${icon('check')} ${e(t("Save credentials"))}</button></div></form>
@@ -365,7 +388,7 @@ function lockStudio() {
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
   editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
   selectedCaptionStyle='default';
-  promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();window.scrollTo(0,0);
+  modelEdit=null;promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();window.scrollTo(0,0);
 }
 window.addEventListener('studio-locked', lockStudio);
 function navigate(page) { setMobileNav(false, false); if(location.hash===`#${page}`) {render();window.scrollTo(0,0);}else location.hash=page; }
@@ -411,6 +434,7 @@ async function sync() {
         if(op.status==='failed') toast(op.error,true);
         else {
           if(old.promptType)promptEdits.delete(old.promptType);
+          if(old.action==='save_model')modelEdit=null;
           if(op.result && state.drafts.some(d=>d.id===op.result)) {
             selectedDraft=op.result;selectedType=currentDraft().type;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;edits.delete(op.result);editRevisions.delete(op.result);
             if(old.openResult) location.hash='create';
@@ -431,7 +455,7 @@ async function sync() {
 async function command(payload,label,success) {
   if(pending||uploading) return toast(t("Let the current request finish first."));
   const id=crypto.randomUUID();
-  pending={id,label:sourceMessage(label),success:sourceMessage(success),started:Date.now(),phase:'sending',promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
+  pending={id,action:payload.action,label:sourceMessage(label),success:sourceMessage(success),started:Date.now(),phase:'sending',promptType:payload.action==='save_prompt'?payload.type:null,openResult:payload.action==='recover_missed'}; render();
   try {
     if(demo) {
       await new Promise(resolve=>setTimeout(resolve,450));
@@ -440,6 +464,7 @@ async function command(payload,label,success) {
       if(result && state.drafts.some(d=>d.id===result)) {selectedDraft=result;selectedType=currentDraft().type;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;edits.delete(result);editRevisions.delete(result);}
       if(payload.action==='recover_missed' && result) location.hash='create';
       if(payload.action==='save_prompt')promptEdits.delete(payload.type);
+      if(payload.action==='save_model')modelEdit=null;
       pending=null;render();toast(t('{message} (demo only)',{message:t(sourceMessage(success))}));
     } else {
       await github.dispatch({...payload,id});
@@ -609,6 +634,7 @@ document.addEventListener('input',event=> {
   }
 });
 document.addEventListener('change',event=> {
+  if(event.target.id==='ai-model'&&!pending) {modelEdit={model:event.target.value,revision:modelSnapshotRevision};render();document.querySelector('#ai-model')?.focus();}
   if(event.target.id==='caption-style'&&!pending&&!uploading&&Object.hasOwn(captionStyles,event.target.value)) {
     selectedCaptionStyle=event.target.value;
     document.querySelector('#caption-style-hint').textContent=t(captionStyles[selectedCaptionStyle].description);
@@ -648,6 +674,13 @@ document.addEventListener('click',async event=> {
   if(action==='settings-view') {
     settingsView=button.dataset.view;render();
     if(settingsView==='connections'&&!demo&&!secretsLoaded)loadSecrets();
+  }
+  if(action==='edit-news-prompts') {settingsView='prompts';promptType='news_selection';navigate('settings');}
+  if(action==='refresh-models') await command({action:'refresh_models'},t("Loading models from OpenAI…"),t("OpenAI model list refreshed"));
+  if(action==='discard-model') {modelEdit=null;render();}
+  if(action==='save-model') {
+    const model=document.querySelector('#ai-model').value;
+    if(model)await command({action:'save_model',model,revision:modelSnapshotRevision},t("Checking and saving your model…"),t("Model saved for all future posts"));
   }
   if(action==='prompt-type') {promptType=button.dataset.type;render();}
   if(action==='default-prompt') {
