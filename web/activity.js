@@ -51,6 +51,8 @@ export function activityItems(state, now = new Date()) {
 export function filterActivity(items, filter) {
   if (filter === 'published') return items.filter(item => item.status === 'published');
   if (filter === 'attention') return items.filter(item => item.attention);
-  if (filter === 'scheduled') return items.filter(item => ['scheduled','waiting','overdue'].includes(item.status));
+  // Upcoming work reads best in the order it will happen.
+  if (filter === 'scheduled') return items.filter(item => ['scheduled','waiting','overdue'].includes(item.status))
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
   return items;
 }

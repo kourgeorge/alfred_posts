@@ -321,6 +321,16 @@ test('Activity keeps future schedules separate from missed and overdue work need
   expect(remote.drafts.filter(d=>d.status==='published')).toHaveLength(2);
 });
 
+test('scheduled activity lists the earliest item first',()=> {
+  const state=demoState();
+  state.schedules=[];
+  Object.assign(state.drafts[0],{status:'scheduled',scheduled_at:'2099-03-01T10:00:00Z'});
+  Object.assign(state.drafts[1],{status:'scheduled',scheduled_at:'2099-01-01T10:00:00Z'});
+  Object.assign(state.drafts[2],{status:'scheduled',scheduled_at:'2099-02-01T10:00:00Z'});
+  const items=filterActivity(activityItems(state,new Date('2026-10-04T08:00:00Z')),'scheduled');
+  expect(items.map(x=>x.date)).toEqual(['2099-01-01T10:00:00Z','2099-02-01T10:00:00Z','2099-03-01T10:00:00Z']);
+});
+
 test('missed tasks remain visible after recovery without duplicate rows',()=> {
   const state=demoState();
   state.schedules=[{id:'old',name:'Old schedule',type:'image',mode:'publish',enabled:true,days:[5],time:'10:10',timezone:'Asia/Jerusalem',starts_at:'2026-10-03T07:00:00Z',last_missed_slot:'2026-10-03@10:10'}];
