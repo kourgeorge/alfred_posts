@@ -215,6 +215,23 @@ who sends `/start` gets a message with their own user ID; nothing else is answer
 messages, without images) is saved in `telegram/` on the private `studio-state`
 branch. Each message is a small OpenAI request (photos cost a little more).
 
+### Manage the bot in Settings
+
+**Settings → Telegram bot** shows whether the bot is connected, Telegram's last
+delivery error, and a **Reconnect** button. There you can also:
+
+- turn the bot on or off (when off, it replies that it is paused);
+- change who can use it (Telegram user IDs);
+- choose the bot's AI model, or use the same model as the studio;
+- replace the bot token or the bot's OpenAI key. Keys are encrypted by the gateway
+  (with its `SETTINGS_KEY` secret), saved in `telegram/settings.json` on the private
+  `studio-state` branch, and never returned to the page. A new token is checked with
+  Telegram and connected automatically. A new OpenAI key saved in **Connections** also
+  updates the bot's copy.
+
+Changes apply to the next message. Saved values take priority over the gateway
+secrets of the same name, which remain the defaults.
+
 ### Set up the bot
 
 1. In Telegram, open **@BotFather**, send `/newbot`, and copy the bot token.
@@ -228,6 +245,8 @@ branch. Each message is a small OpenAI request (photos cost a little more).
    - `OPENAI_API_KEY`: a copy of the OpenAI key. The gateway cannot read GitHub
      Secrets, so it needs its own copy. **Changing the key in Settings does not
      update this copy**; update both.
+   - `SETTINGS_KEY`: a random secret (at least 32 characters) that encrypts keys saved
+     in **Settings → Telegram bot**.
    - Optional `TELEGRAM_OPENAI_MODEL`: a model for the bot only, instead of the shared
      **AI model** from Settings. Optional `OPENAI_MODEL`: used only when neither is set.
 4. In the private automation repository, add the Actions secret `TELEGRAM_BOT_TOKEN`

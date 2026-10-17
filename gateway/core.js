@@ -176,6 +176,12 @@ export function createGateway(backend) {
       }
       if (!await authenticated(request, env)) throw new HttpError(401, 'Your session has ended. Enter your password to open the studio.');
       if (path === '/api/state' && request.method === 'GET') return respond(await backend.readState(env));
+      if (path.startsWith('/api/telegram') && backend.readFile) {
+        const bot = await import('./telegram-settings.js');
+        if (path === '/api/telegram' && request.method === 'GET') return respond(await bot.telegramStatus(request, env, backend));
+        if (path === '/api/telegram' && request.method === 'PUT') return respond(await bot.saveTelegram(request, env, backend, await body(request)));
+        if (path === '/api/telegram/connect' && request.method === 'POST') return respond(await bot.connectTelegram(request, env, backend));
+      }
       const part = path.match(new RegExp(`^/api/uploads/(${UPLOAD_ID})/parts/(\\d{1,2})$`));
       if (part && ['PUT','GET'].includes(request.method)) {
         const index = Number(part[2]);

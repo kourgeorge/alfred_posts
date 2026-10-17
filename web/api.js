@@ -60,6 +60,12 @@ export async function connect(endpoint, password) {
 
 export async function readState() { return api('/state'); }
 
+// Settings → Telegram bot (GitHub installation). Keys are sent over HTTPS, encrypted by the
+// gateway, and never returned; the status only says whether each one is set.
+export const telegramStatus = () => api('/telegram');
+export const saveTelegram = value => api('/telegram', { method: 'PUT', body: JSON.stringify(value) });
+export const connectTelegram = () => api('/telegram/connect', { method: 'POST' });
+
 export async function dispatch(command) {
   return api('/commands', { method: 'POST', body: JSON.stringify(command) });
 }

@@ -42,6 +42,10 @@ let promptSnapshot = null;
 const promptEdits = new Map();
 let modelEdit = null;
 let modelSnapshotRevision = 0;
+// Settings → Telegram bot: loaded from the gateway on demand, never from state.json.
+let bot = null;
+let botError = '';
+let botBusy = false;
 let sourceMode = 'library';
 let selectedUpload = null;
 let uploadDescription = '';
@@ -267,8 +271,8 @@ function activityCard(item) {
 function settingsPage() {
   const prompts = settingsView === 'prompts';
   return `${heading(t("MAKE YOURSELF AT HOME"), prompts?t("Your voice, in every post."):t("The keys to your studio."), prompts?t("Shape the tone, language, and style of each kind of post."):t("Update your connections in one place. Saved keys stay private."))}
-    <div class="filter-bar settings-views" role="group" aria-label="${e(t("Settings sections"))}">${[['connections',t("Connections")],['prompts',t("AI prompts")],['model',t("AI model")]].map(([view,label])=>`<button data-action="settings-view" data-view="${view}" aria-pressed="${settingsView===view}" class="${settingsView===view?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
-    ${prompts?promptsPage():settingsView==='model'?modelPage():connectionsPage()}`;
+    <div class="filter-bar settings-views" role="group" aria-label="${e(t("Settings sections"))}">${[['connections',t("Connections")],['prompts',t("AI prompts")],['model',t("AI model")],...(cloud()?[]:[['telegram',t("Telegram bot")]])].map(([view,label])=>`<button data-action="settings-view" data-view="${view}" aria-pressed="${settingsView===view}" class="${settingsView===view?'selected':''}" ${blocked()}>${label}</button>`).join('')}</div>
+    ${prompts?promptsPage():settingsView==='model'?modelPage():settingsView==='telegram'?telegramPage():connectionsPage()}`;
 }
 
 function promptsPage() {
@@ -305,6 +309,51 @@ function modelPage() {
     ${!state.ai_settings?.model?`<p class="field-hint">${e(t("Until you save a shared model, existing per-format settings remain active."))}</p>${legacy.length?`<p class="field-hint" dir="auto">${e(t("Photo"))}: <bdi>${e(values.OPENAI_MODEL||'—')}</bdi> · ${e(t("Video"))}: <bdi>${e(values.OPENAI_MODEL_VIDEO||'—')}</bdi> · ${e(t("Question"))}: <bdi>${e(values.OPENAI_MODEL_QUESTION||'—')}</bdi></p>`:''}`:`<p class="field-hint">${e(t("Active model"))}: <bdi>${e(current)}</bdi></p>`}
     <div class="settings-save"><button type="button" class="text-link" data-action="discard-model" ${pending||!modelEdit?'disabled':''}>${e(t("Discard changes"))}</button><button type="button" class="btn primary" data-action="save-model" ${pending||!selected||(!modelEdit&&state.ai_settings?.model)?'disabled':''}>${icon('check')} ${e(t("Save model"))}</button></div>
     </section><aside class="settings-aside"><div class="panel security-note"><h3>${e(t("Fresh from your OpenAI account"))}</h3><p>${e(t("Refresh uses your saved API key in the private worker. Only model names return to this page. Loading may take a minute while the worker starts."))}</p><p>${demo?e(t("Demo model options are samples. No OpenAI request is made.")):e(t("Saving affects future generation. Existing drafts and work already in progress keep their current content and model."))}</p></div></aside></div>`;
+}
+
+function telegramPage() {
+  if(demo) return `<div class="panel security-note"><span class="lock-tile">${icon('send')}</span><h3>${e(t("Telegram bot"))}</h3><p>${e(t("Send photos and videos to a private Telegram bot, chat about the caption, and approve the post with a button. Available after you sign in to your studio."))}</p></div>`;
+  if(!bot) return `<div class="panel"><p id="bot-status" role="status">${botError?e(t(sourceMessage(botError))):e(t("Loading the bot’s settings…"))}</p>${botError?`<button type="button" class="btn secondary" data-action="bot-reload">${icon('refresh')} ${e(t("Try again"))}</button>`:''}</div>`;
+  const off=botBusy||blocked()?'disabled':'';
+  const keyState=(set,label)=>`<span class="secret-state ${set?'set':''}">${set?t("Configured"):t("Not configured")}</span><span class="visually-hidden">${e(label)}</span>`;
+  const status=!bot.token_set?t("Add a bot token to start.")
+    :bot.telegram_error?t(sourceMessage(bot.telegram_error))
+    :bot.connected&&!bot.enabled?t("Connected, but paused. The bot replies that it is paused.")
+    :bot.connected?t("Connected. Messages to the bot reach your studio.")
+    :bot.webhook_elsewhere?t("This bot is connected to another address. Reconnect to use it here.")
+    :t("Not connected yet. Select Reconnect.");
+  const models=[...new Set([...(state.model_catalog?.ids??[]),bot.model].filter(Boolean))];
+  const shared=state.ai_settings?.model;
+  return `<div class="settings-layout"><form id="bot-form" class="settings-form">
+    <section class="panel"><div class="section-title"><div class="settings-title"><span class="service-symbol telegram-symbol">${icon('send')}</span><div><h2>${bot.bot?`@${e(bot.bot.username)}`:e(t("Telegram bot"))}</h2><p>${e(t("Photos and videos from Telegram, turned into posts."))}</p></div></div><span class="secret-state ${bot.connected&&bot.enabled?'set':''}">${!bot.enabled?t("Paused"):bot.connected?t("Connected"):t("Not connected")}</span></div>
+      <p id="bot-status" class="field-hint" role="status">${e(status)}</p>
+      ${bot.last_error?`<p class="form-error" dir="auto">${e(t('Telegram’s last delivery error ({date}): {error}',{date:formatDate(bot.last_error_at),error:bot.last_error}))}</p>`:''}
+      ${bot.pending_updates?`<p class="field-hint">${e(t('{count} messages are waiting to be delivered.',{count:number(bot.pending_updates)}))}</p>`:''}
+      <div class="bot-row"><button type="button" class="btn secondary" data-action="bot-connect" ${off} ${bot.token_set?'':'disabled'}>${icon('refresh')} ${e(t("Reconnect"))}</button><button type="button" class="btn secondary" data-action="bot-reload" ${off}>${e(t("Check status"))}</button></div>
+      <div class="bot-switch"><div><strong>${e(t("Bot is on"))}</strong><p class="field-hint">${e(t("When off, the bot replies that it is paused and changes nothing."))}</p></div><button type="button" class="switch ${bot.enabled?'on':''}" role="switch" aria-checked="${bot.enabled}" aria-label="${e(t("Bot is on"))}" data-action="bot-toggle" ${off}><span></span></button></div>
+    </section>
+    <section class="panel"><div class="section-title"><div><h2>${e(t("Who can use the bot"))}</h2><p>${e(t("Only these Telegram accounts can talk to the bot, in private chats."))}</p></div></div>
+      <label for="bot-users">${e(t("Telegram user IDs"))}</label><input id="bot-users" name="users" inputmode="numeric" dir="ltr" value="${e(bot.users.join(', '))}" placeholder="266148622, 123456789" autocomplete="off" ${off} />
+      <p class="field-hint">${e(t("Separate IDs with commas. Someone not on the list who sends /start gets their ID from the bot."))}</p>
+      <label for="bot-model">${e(t("Bot model"))}</label><select id="bot-model" name="model" dir="ltr" ${off}><option value="">${e(shared?t('Same as the studio ({model})',{model:shared}):t("Same as the studio"))}</option>${models.map(id=>`<option value="${e(id)}" ${id===bot.model?'selected':''}>${e(id)}</option>`).join('')}</select>
+      <p class="field-hint">${e(t("Captions still follow your saved Photo and Video instructions."))} <button type="button" class="text-link" data-action="settings-view" data-view="model" ${off}>${e(t("Refresh the model list"))} ${icon('chevron')}</button></p>
+    </section>
+    <section class="panel"><div class="section-title"><div><h2>${e(t("Bot keys"))}</h2><p>${e(t("Paste a replacement to change a key. Blank fields keep the saved key."))}</p></div></div>
+      <div class="bot-key"><label for="bot-token">${e(t("Bot token"))}</label>${keyState(bot.token_set,t("Bot token"))}</div><div class="secret-input"><input id="bot-token" type="password" name="TELEGRAM_BOT_TOKEN" dir="ltr" placeholder="${e(t("Paste a new token from @BotFather"))}" autocomplete="new-password" ${off} /><button type="button" class="text-link secret-toggle" data-action="toggle-secret" data-target="bot-token" aria-label="${e(t('Show {label} replacement',{label:t("Bot token").toLowerCase()}))}" aria-controls="bot-token" aria-pressed="false" ${off}>${e(t("Show"))}</button></div>
+      <p class="field-hint">${e(t("A new token is checked with Telegram and connected automatically. Also update TELEGRAM_BOT_TOKEN in GitHub Secrets, which sends results back to the chat."))}</p>
+      <div class="bot-key"><label for="bot-openai">${e(t("OpenAI API key for the bot"))}</label>${keyState(bot.openai_key_set,t("OpenAI API key for the bot"))}</div><div class="secret-input"><input id="bot-openai" type="password" name="OPENAI_API_KEY" dir="ltr" placeholder="${e(t("Paste a new OpenAI API key"))}" autocomplete="new-password" ${off} /><button type="button" class="text-link secret-toggle" data-action="toggle-secret" data-target="bot-openai" aria-label="${e(t('Show {label} replacement',{label:t("OpenAI API key for the bot").toLowerCase()}))}" aria-controls="bot-openai" aria-pressed="false" ${off}>${e(t("Show"))}</button></div>
+      <p class="field-hint">${e(t("Saving a new OpenAI key in Connections also updates this one."))}</p>
+      ${bot.settings_key_set?'':`<p class="form-error">${e(t("Saving keys here needs the gateway secret SETTINGS_KEY. Other settings can still be saved."))}</p>`}
+    </section>
+    <div id="bot-error" class="form-error" role="alert"></div><div class="settings-save"><span>${icon('lock')} ${e(t("Changes apply to the next message."))}</span><button type="submit" class="btn primary" ${off}>${icon('check')} ${e(t("Save bot settings"))}</button></div></form>
+    <aside class="settings-aside"><div class="panel security-note"><span class="lock-tile">${icon('lock')}</span><h3>${e(t("Nothing posts without you."))}</h3><p>${e(t("The bot suggests a caption and a time. A post is saved, scheduled or published only after you tap Approve in Telegram."))}</p><p>${e(t("Keys are encrypted by your gateway and saved in your private repository. They’re never returned to this page."))}</p></div><div class="plain-note">${icon('info')} ${e(t("Telegram lets bots download files up to 20 MB. Upload larger videos here in Create a post."))}</div></aside></div>`;
+}
+
+async function loadBot() {
+  if(demo||!signedIn||cloud())return;
+  botError='';
+  try {bot=await github.telegramStatus();}catch(error){bot=null;botError=error.message;}
+  if(route()==='settings'&&settingsView==='telegram')render();
 }
 
 function connectionsPage() {
@@ -389,7 +438,7 @@ function lockStudio() {
   uploadedMedia.clear();clearUpload();uploadDescription='';uploadError='';sourceMode='library';
   closeModal();github.disconnect();demo=false;signedIn=false;pending=null;
   state={drafts:[],schedules:[],operations:[]};edits.clear();editRevisions.clear();
-  editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;
+  editorSnapshot=null;secretNames.clear();secretsLoaded=false;secretsError='';selectedDraft=null;bot=null;botError='';botBusy=false;
   selectedCaptionStyle='default';
   modelEdit=null;promptEdits.clear();promptSnapshot=null;promptType='image';settingsView='connections';render();window.scrollTo(0,0);
 }
@@ -556,10 +605,26 @@ function scheduleModal(id) {
 
 document.addEventListener('submit', async event=> {
   const form=event.target;
-  if (!['login-form','schedule-form','one-time-form','settings-form','prompt-form','upload-form'].includes(form.id)) return;
+  if (!['login-form','schedule-form','one-time-form','settings-form','prompt-form','upload-form','bot-form'].includes(form.id)) return;
   event.preventDefault();
   const data=new FormData(form);
   if(form.id==='upload-form') {await generateUpload();return;}
+  if(form.id==='bot-form') {
+    const errorTarget=()=>document.querySelector('#bot-error');
+    try {
+      const users=String(data.get('users')).split(/[\s,]+/).filter(Boolean);
+      if(users.some(id=>!/^\d{1,20}$/.test(id))) throw new Error(t("Telegram user IDs contain only numbers. Add up to 20."));
+      const value={revision:bot.revision};
+      if(users.join(',')!==bot.users.join(','))value.users=users;
+      if(String(data.get('model'))!==bot.model)value.model=String(data.get('model'));
+      for(const name of ['TELEGRAM_BOT_TOKEN','OPENAI_API_KEY']) {const v=String(data.get(name)).trim();if(v)value[name]=v;}
+      if(Object.keys(value).length===1) throw new Error(t("Change a setting or enter a replacement key to save."));
+      botBusy=true;render();
+      bot=await github.saveTelegram(value);botBusy=false;render();
+      toast(t("Bot settings saved. They apply to the next message."));
+    } catch(error) {botBusy=false;if(bot&&!document.querySelector('#bot-form [type=submit]')?.disabled)render();const target=errorTarget();if(target)target.textContent=t(sourceMessage(error.message));else toast(error.message,true);}
+    return;
+  }
   if(form.id==='login-form') {
     const submit=form.querySelector('[type=submit]');submit.disabled=true;submit.textContent=t("Opening your studio…");
     try {
@@ -600,6 +665,8 @@ document.addEventListener('submit', async event=> {
       if(values.FB_PAGE_ID&&!/^\d+$/.test(values.FB_PAGE_ID)) throw new Error(t("The Facebook page ID should contain only numbers."));
       submit.disabled=true;submit.textContent=t("Saving securely…");document.querySelector('[data-language]').disabled=true;
       if(!demo) await github.saveSecrets(values);
+      // The bot keeps its own copy of the OpenAI key (the gateway cannot read GitHub Secrets).
+      if(!demo&&!cloud()&&values.OPENAI_API_KEY) await github.saveTelegram({revision:(bot??await github.telegramStatus()).revision,OPENAI_API_KEY:values.OPENAI_API_KEY}).then(next=>{bot=next;}).catch(()=>toast(t("The OpenAI key was saved, but the Telegram bot still has the old key. Update it in Settings → Telegram bot."),true));
       Object.keys(values).forEach(k=>secretNames.add(k));secretsLoaded=true;secretsError='';form.reset();
       const changedSettings=Object.fromEntries(Object.entries(values).filter(([name])=>form.elements[name].hasAttribute('data-setting')));
       if(demo&&Object.keys(changedSettings).length) state.connection_settings={values:{...state.connection_settings?.values,...changedSettings},updated_at:new Date().toISOString()};
@@ -677,8 +744,18 @@ document.addEventListener('click',async event=> {
   if(action==='settings-view') {
     settingsView=button.dataset.view;render();
     if(settingsView==='connections'&&!demo&&!secretsLoaded)loadSecrets();
+    if(settingsView==='telegram'&&!demo)loadBot();
   }
   if(action==='edit-news-prompts') {settingsView='prompts';promptType='news_selection';navigate('settings');}
+  if(action==='bot-reload') {bot=null;render();await loadBot();}
+  if(action==='bot-connect'||action==='bot-toggle') {
+    botBusy=true;render();
+    try {
+      bot=action==='bot-connect'?await github.connectTelegram():await github.saveTelegram({revision:bot.revision,enabled:!bot.enabled});
+      toast(action==='bot-connect'?t("The bot is connected to your studio."):bot.enabled?t("The bot is on."):t("The bot is paused."));
+    } catch(error) {toast(error.message,true);}
+    botBusy=false;render();
+  }
   if(action==='refresh-models') await command({action:'refresh_models'},t("Loading models from OpenAI…"),t("OpenAI model list refreshed"));
   if(action==='discard-model') {modelEdit=null;render();}
   if(action==='save-model') {
@@ -743,7 +820,7 @@ document.addEventListener('click',async event=> {
   }
 });
 
-window.addEventListener('hashchange',()=> {setMobileNav(false,false);render();window.scrollTo(0,0);if(route()==='settings'&&signedIn&&!demo&&!secretsLoaded)loadSecrets();});
+window.addEventListener('hashchange',()=> {setMobileNav(false,false);render();window.scrollTo(0,0);if(route()==='settings'&&signedIn&&!demo&&!secretsLoaded)loadSecrets();if(route()==='settings'&&settingsView==='telegram'&&signedIn&&!demo&&!bot)loadBot();});
 async function loadSecrets() {
   try {secretNames=await github.secretsStatus();secretsLoaded=true;}catch(error){secretsError=error.message;}
   if(signedIn&&route()==='settings'&&settingsView==='connections') {

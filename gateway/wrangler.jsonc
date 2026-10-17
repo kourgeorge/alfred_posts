@@ -11,5 +11,5 @@
   "observability": { "enabled": true }
   // Worker secrets (wrangler secret put … -c gateway/wrangler.jsonc): STUDIO_PASSWORD, SESSION_SECRET,
   // GITHUB_TOKEN, and for the Telegram bot TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET,
-  // TELEGRAM_ALLOWED_USER_IDS, OPENAI_API_KEY (optional TELEGRAM_OPENAI_MODEL, OPENAI_MODEL).
+  // TELEGRAM_ALLOWED_USER_IDS, OPENAI_API_KEY, SETTINGS_KEY (optional TELEGRAM_OPENAI_MODEL, OPENAI_MODEL).
 }

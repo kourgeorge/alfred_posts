@@ -90,7 +90,7 @@ test('only genuine webhook calls from listed users in private chats are handled'
   assert.equal((await webhook(message({ text: 'hi' }), { secret: null })).status, 401);
   assert.equal((await webhook({}, { method: 'GET' })).status, 404);
   assert.equal((await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST' }),
-    { ...env, TELEGRAM_BOT_TOKEN: '' })).status, 404);
+    { ...env, TELEGRAM_WEBHOOK_SECRET: '' })).status, 404);
   assert.equal(fake.all.length, 0);
   // A stranger only learns their own user ID (to help with setup); nothing is read or stored.
   assert.equal((await webhook(message({ text: '/start' }, from(3003)))).status, 200);
@@ -256,4 +256,93 @@ test('the dashboard command check accepts bot commands and rejects malformed one
   for (const bad of [{ type: 'news' }, { text: '' }, { upload_id: '../x' }, { publish: 'yes' }, { scheduled_at: '2099-01-01T00:00:00Z' },
     { notify_chat_id: 'abc' }, { notify_language: 'fr' }])
     assert.throws(() => validateCommand({ ...good, ...bad }), JSON.stringify(bad));
+});
+
+// ---- Settings → Telegram bot (dashboard) ----
+
+const SETTINGS_KEY = 'k'.repeat(40);
+async function session(extraEnv = {}) {
+  const response = await worker.fetch(new Request('https://gateway.example/api/login', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://kourgeorge.github.io', 'CF-Connecting-IP': `bot-${++updateId}` },
+    body: JSON.stringify({ password: env.STUDIO_PASSWORD }) }), { ...env, ...extraEnv });
+  return (await response.json()).token;
+}
+function api(path, token, { method = 'GET', value, extraEnv = {} } = {}) {
+  return worker.fetch(new Request(`https://gateway.example${path}`, { method, headers: { 'Content-Type': 'application/json',
+    Origin: 'https://kourgeorge.github.io', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    ...(value === undefined ? {} : { body: JSON.stringify(value) }) }), { ...env, SETTINGS_KEY, ...extraEnv });
+}
+
+test('bot settings need a studio session and never return keys', async () => {
+  const fake = world();
+  for (const [path, method] of [['/api/telegram', 'GET'], ['/api/telegram', 'PUT'], ['/api/telegram/connect', 'POST']])
+    assert.equal((await api(path, null, { method, value: method === 'PUT' ? {} : undefined })).status, 401);
+  const token = await session();
+  const status = await (await api('/api/telegram', token)).json();
+  assert.deepEqual([status.enabled, status.users, status.token_set, status.openai_key_set, status.settings_key_set], [true, [String(OWNER), '2002'], true, true, true]);
+  const text = JSON.stringify(status);
+  assert.ok(!text.includes('secret-bot-token') && !text.includes('private-ai-key') && !text.includes(env.TELEGRAM_WEBHOOK_SECRET));
+  void fake;
+});
+
+test('saved users, model and pause switch apply to the bot on the next message', async () => {
+  const fake = world({ ai: [{ role: 'assistant', content: 'Hi from the new model' }] });
+  const token = await session();
+  const saved = await api('/api/telegram', token, { method: 'PUT', value: { revision: 0, users: ['3003'], model: 'bot-model' } });
+  assert.equal(saved.status, 200);
+  assert.deepEqual((await saved.json()).users, ['3003']);
+  // The owner from the gateway variable is no longer allowed; the new user is.
+  await webhook(message({ text: 'hello' }));
+  assert.equal(fake.openai.length, 0);
+  const newUser = from(3003);
+  await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.TELEGRAM_WEBHOOK_SECRET },
+    body: JSON.stringify({ update_id: ++updateId, ...message({ text: 'hello' }, newUser) }) }), { ...env, SETTINGS_KEY });
+  assert.equal(fake.openai.at(-1).model, 'bot-model');
+  // A second save must start from the latest revision.
+  assert.equal((await api('/api/telegram', token, { method: 'PUT', value: { revision: 0, enabled: false } })).status, 409);
+  assert.equal((await api('/api/telegram', token, { method: 'PUT', value: { revision: 1, enabled: false } })).status, 200);
+  const before = fake.openai.length;
+  await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.TELEGRAM_WEBHOOK_SECRET },
+    body: JSON.stringify({ update_id: ++updateId, ...message({ text: 'are you there?' }, newUser) }) }), { ...env, SETTINGS_KEY });
+  assert.equal(fake.openai.length, before);
+  assert.match(fake.sent.at(-1).text, /paused/);
+});
+
+test('a new bot token and OpenAI key are checked, encrypted at rest, used by the bot, and connect the webhook', async () => {
+  const fake = world({ ai: [{ role: 'assistant', content: 'Using the saved key' }] });
+  const token = await session();
+  const newToken = '999999:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+  // The fake Telegram only answers the original token's URLs, so route the new one too.
+  const base = globalThis.fetch; const authorization = [];
+  mock.method(globalThis, 'fetch', async (url, options = {}) => {
+    url = String(url);
+    if (url.startsWith(`https://api.telegram.org/bot${newToken}/`)) {
+      const method = url.split('/').at(-1); const body = JSON.parse(options.body || '{}');
+      fake.sent.push({ method, viaNewToken: true, ...body });
+      if (method === 'getMe') return Response.json({ ok: true, result: { username: 'new_bot', first_name: 'New' } });
+      if (method === 'getWebhookInfo') return Response.json({ ok: true, result: { url: 'https://gateway.example/telegram/webhook', pending_update_count: 0 } });
+      return Response.json({ ok: true, result: true });
+    }
+    if (url === 'https://api.openai.com/v1/chat/completions') authorization.push(options.headers.Authorization);
+    return base(url, options);
+  });
+  for (const bad of [{ TELEGRAM_BOT_TOKEN: 'not-a-token' }, { OPENAI_API_KEY: 'short' }, { users: ['abc'] }, { model: 'bad model!' }, { extra: true }])
+    assert.equal((await api('/api/telegram', token, { method: 'PUT', value: { revision: 0, ...bad } })).status, 400, JSON.stringify(bad));
+  assert.equal((await api('/api/telegram', token, { method: 'PUT', value: { revision: 0, TELEGRAM_BOT_TOKEN: newToken },
+    extraEnv: { SETTINGS_KEY: '' } })).status, 503);
+  const saved = await api('/api/telegram', token, { method: 'PUT', value: { revision: 0, TELEGRAM_BOT_TOKEN: newToken, OPENAI_API_KEY: 'sk-new-dashboard-key-1234567890' } });
+  assert.equal(saved.status, 200);
+  const status = await saved.json();
+  assert.deepEqual([status.bot.username, status.connected], ['new_bot', true]);
+  const hook = fake.sent.find(m => m.method === 'setWebhook' && m.viaNewToken);
+  assert.deepEqual([hook.url, hook.secret_token], ['https://gateway.example/telegram/webhook', env.TELEGRAM_WEBHOOK_SECRET]);
+  const stored = Buffer.from(fake.files.get('telegram/settings.json').bytes).toString();
+  assert.ok(!stored.includes(newToken) && !stored.includes('sk-new-dashboard-key'));
+  await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.TELEGRAM_WEBHOOK_SECRET },
+    body: JSON.stringify({ update_id: ++updateId, ...message({ text: 'hello' }) }) }), { ...env, SETTINGS_KEY });
+  assert.deepEqual(authorization, ['Bearer sk-new-dashboard-key-1234567890']);
+  assert.ok(fake.sent.some(m => m.viaNewToken && m.method === 'sendMessage' && m.text === 'Using the saved key'));
 });

@@ -9,6 +9,7 @@ import { UPLOAD_CHUNK, base64, body, encoder, uploadManifest, validateCommand } 
 import { ACCURACY, DEFAULT_PROMPTS } from '../server/content.js';
 import { wallClock, zonedTime } from '../server/scheduler.js';
 import { readLimited } from '../server/util.js';
+import { botSettings } from './telegram-settings.js';
 
 const ZONE = 'Asia/Jerusalem';
 const MAX_DOWNLOAD = 20 * 1024 * 1024; // Telegram's download limit for bots.
@@ -26,6 +27,7 @@ const TEXT = {
     welcome: 'Hi! Send me a photo or video, with a few words about it if you like, and I will write a Facebook post. '
       + 'Tell me when to post it, ask for changes, or ask what is scheduled. Nothing is posted until you tap Approve.',
     reset: 'Started a new conversation.',
+    paused: 'The bot is paused. It can be turned back on in Alfred Studio → Settings → Telegram bot.',
     tooLarge: 'This file is too large. Telegram lets bots download files up to 20 MB, and the studio accepts photos up to 10 MB. '
       + 'Upload larger videos in Alfred Studio.',
     unsupported: 'Send a JPG, PNG or WebP photo, or an MP4 or MOV video.',
@@ -45,6 +47,7 @@ const TEXT = {
     welcome: 'שלום! שלחו לי תמונה או סרטון, אפשר עם כמה מילים עליו, ואכתוב פוסט לפייסבוק. '
       + 'אפשר לומר לי מתי לפרסם, לבקש שינויים או לשאול מה מתוזמן. שום דבר לא מתפרסם עד שתלחצו על "אישור".',
     reset: 'התחלנו שיחה חדשה.',
+    paused: 'הבוט מושהה. אפשר להפעיל אותו מחדש ב-Alfred Studio ← הגדרות ← בוט טלגרם.',
     tooLarge: 'הקובץ גדול מדי. טלגרם מאפשר לבוטים להוריד קבצים עד 20MB, והסטודיו מקבל תמונות עד 10MB. '
       + 'סרטונים גדולים יותר אפשר להעלות דרך Alfred Studio.',
     unsupported: 'שלחו תמונה מסוג JPG, PNG או WebP, או סרטון MP4 או MOV.',
@@ -90,7 +93,6 @@ function sameSecret(value, expected) {
 }
 
 const hex = buffer => [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
-const allowedUsers = env => String(env.TELEGRAM_ALLOWED_USER_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean);
 const formatTime = (date, lang) => new Intl.DateTimeFormat(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: ZONE,
   weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
 
@@ -390,9 +392,13 @@ async function route(env, backend, update) {
   const chat = message?.chat ?? query?.message?.chat;
   if (!from || !chat || chat.type !== 'private' || !Number.isInteger(update.update_id)) return;
   const lang = String(from.language_code ?? '').startsWith('he') ? 'he' : 'en';
-  if (!allowedUsers(env).includes(String(from.id))) {
+  if (!env.TELEGRAM_USERS.includes(String(from.id))) {
     // Helps the owner find their user ID during setup; reveals nothing else.
     if (/^\/start\b/.test(message?.text ?? '')) await send(env, chat.id, TEXT[lang].private(from.id));
+    return;
+  }
+  if (!env.TELEGRAM_ENABLED) {
+    if (message) await send(env, chat.id, TEXT[lang].paused);
     return;
   }
   const ctx = { env, backend, chatId: chat.id, lang, t: TEXT[lang] };
@@ -416,12 +422,18 @@ async function route(env, backend, update) {
  * readFile(env, path) → {text, sha} | null / writeFile(env, path, text, sha) → false on conflict.
  */
 export async function handleTelegram(request, env, backend) {
-  if (request.method !== 'POST' || !env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET || !allowedUsers(env).length)
-    return new Response(null, { status: 404 });
+  if (request.method !== 'POST' || !env.TELEGRAM_WEBHOOK_SECRET) return new Response(null, { status: 404 });
   if (!sameSecret(request.headers.get('X-Telegram-Bot-Api-Secret-Token'), env.TELEGRAM_WEBHOOK_SECRET))
     return new Response(null, { status: 401 });
   // Always answer 200 once the request is genuine: Telegram would otherwise resend it.
-  try { await route(env, backend, await body(request, 262144)); }
+  try {
+    // Settings saved in the dashboard take priority over gateway variables.
+    const settings = await botSettings(env, backend);
+    if (!settings.token) return new Response(null, { status: 200 });
+    const merged = { ...env, TELEGRAM_BOT_TOKEN: settings.token, OPENAI_API_KEY: settings.openaiKey,
+      TELEGRAM_OPENAI_MODEL: settings.model, TELEGRAM_USERS: settings.users, TELEGRAM_ENABLED: settings.enabled };
+    await route(merged, backend, await body(request, 262144));
+  }
   catch (error) { console.error('Telegram update failed', error?.name ?? 'Error'); }
   return new Response(null, { status: 200 });
 }
