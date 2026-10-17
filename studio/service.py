@@ -96,6 +96,35 @@ class Studio:
             return draft_id
         return self.store.change(save)
 
+    def create_upload_draft(self, command):
+        """Save a caption approved in the Telegram bot, then schedule or publish it."""
+        post_type, draft_id = command.get("type"), command["id"]
+        if post_type not in ("image", "video"):
+            raise ValueError("Choose a photo or video for your upload.")
+        upload_id = validate_id(command.get("upload_id"))
+        text = str(command.get("text", "")).strip()
+        if not text or len(text) > 12000:
+            raise ValueError("The caption must contain 1–12,000 characters.")
+        if command.get("publish") and command.get("scheduled_at"):
+            raise ValueError("Choose either to publish now or a publication time.")
+        date = parse_future(command["scheduled_at"]) if command.get("scheduled_at") else None
+        state, _ = self.store.read()
+        if not any(d["id"] == draft_id for d in state["drafts"]):
+            if sum(d["status"] in ("draft", "scheduled", "failed") for d in state["drafts"]) >= 30:
+                raise ValueError("You have 30 unfinished drafts. Publish or delete some before creating more.")
+            prepared = self.media.prepare_upload_text(post_type, upload_id, text, command.get("description"))
+            draft = {"id": draft_id, "type": post_type, "status": "scheduled" if date else "draft", "revision": 1,
+                     "created_at": now_iso(), "schedule_id": None, "caption_style": "default",
+                     "scheduled_at": date, **prepared}
+
+            def save(state):
+                if not any(d["id"] == draft_id for d in state["drafts"]):
+                    state["drafts"].insert(0, draft)
+            self.store.change(save)
+        if command.get("publish"):
+            self.publish({"id": f"publish-{draft_id}", "draft_id": draft_id, "revision": 1})
+        return draft_id
+
     def publish(self, command):
         def reserve(state):
             draft = edit_draft(state, command)
@@ -213,6 +242,8 @@ class Studio:
             validate_id(command.get("upload_id"))
             return self.generate(command.get("type"), command["id"], upload_id=command["upload_id"],
                                  description=command.get("description"), caption_style=command.get("caption_style", "default"))
+        if action == "create_upload_draft":
+            return self.create_upload_draft(command)
         if action == "publish":
             return self.publish(command)
         if action in ("save_draft", "schedule_draft", "cancel_draft"):

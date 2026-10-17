@@ -1817,5 +1817,49 @@ export const translations = {
   "Enter at least one new value to save.": [
     "יש להזין לפחות ערך חדש אחד לשמירה.",
     "أدخل قيمة جديدة واحدة على الأقل للحفظ."
+  ],
+  "Powered by Cloudflare": [
+    "מופעל באמצעות Cloudflare",
+    "بدعم من Cloudflare"
+  ],
+  "Starting": [
+    "מתחיל",
+    "جارٍ البدء"
+  ],
+  "Sending your request to the studio. Please keep this tab open.": [
+    "הבקשה נשלחת לסטודיו. יש להשאיר את הלשונית פתוחה.",
+    "جارٍ إرسال طلبك إلى الاستوديو. اترك علامة التبويب مفتوحة."
+  ],
+  "The studio is taking longer to start. Your request is already sent; no need to submit it again.": [
+    "הסטודיו מתעכב בהתחלה. הבקשה כבר נשלחה ואין צורך לשלוח אותה שוב.",
+    "يتأخر الاستوديو في بدء التنفيذ. أُرسل طلبك بالفعل؛ لا حاجة لإرساله مجددًا."
+  ],
+  "Your request is starting. Keep this tab open; it updates automatically.": [
+    "הבקשה מתחילה. יש להשאיר את הלשונית פתוחה; היא מתעדכנת אוטומטית.",
+    "يبدأ تنفيذ طلبك. اترك علامة التبويب مفتوحة؛ ستتحدث تلقائيًا."
+  ],
+  "Checks run every 30 minutes. The latest recurring post catches up within 24 hours; older missed runs need your attention.": [
+    "בדיקות רצות כל 30 דקות. הפרסום הקבוע האחרון יושלם בתוך 24 שעות; מועדים ישנים יותר שהוחמצו דורשים בדיקה.",
+    "تعمل عمليات التحقق كل 30 دقيقة. يُستدرك آخر منشور متكرر خلال 24 ساعة؛ أما المواعيد الأقدم الفائتة فتحتاج إلى مراجعتك."
+  ],
+  "Credentials travel over a secure connection and are saved encrypted in your private Cloudflare storage.": [
+    "פרטי הגישה נשלחים בחיבור מאובטח ונשמרים מוצפנים באחסון הפרטי שלך ב־Cloudflare.",
+    "تُرسل بيانات الوصول عبر اتصال آمن وتُحفظ مشفّرة في مساحة التخزين الخاصة بك على Cloudflare."
+  ],
+  "Credentials saved securely": [
+    "פרטי הגישה נשמרו בבטחה",
+    "حُفظت بيانات الوصول بأمان"
+  ],
+  "The check uses your saved schedules when it starts. Paused, future, and expired recurring tasks are not forced to run. The check usually finishes within a minute.": [
+    "הבדיקה משתמשת בתזמונים השמורים בזמן ההתחלה. משימות קבועות מושהות, עתידיות או שפג תוקפן לא יורצו בכפייה. הבדיקה מסתיימת בדרך כלל בתוך דקה.",
+    "يستخدم التحقق جداولك المحفوظة عند بدئه. لا تُشغّل قسرًا المهام المتكررة المتوقفة أو المستقبلية أو المنتهية. يكتمل التحقق عادةً خلال دقيقة."
+  ],
+  "Invalid credential.": [
+    "פרטי גישה לא תקינים.",
+    "بيانات وصول غير صالحة."
+  ],
+  "The studio could not start this request. Please try again shortly.": [
+    "הסטודיו לא הצליח להתחיל את הבקשה. נסו שוב בעוד רגע.",
+    "تعذّر على الاستوديو بدء هذا الطلب. حاول مرة أخرى بعد قليل."
   ]
 };

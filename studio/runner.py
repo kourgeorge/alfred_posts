@@ -10,6 +10,7 @@ from studio.models import apply_model
 from studio.service import Studio
 from studio.settings import capture_settings
 from studio.store import GitHubStore
+from studio.telegram import notify
 
 
 def main():
@@ -30,7 +31,13 @@ def main():
             apply_model(Config.from_env(require_google=False), store.read()[0]), uploads=store))
         command = os.environ.get("STUDIO_COMMAND", "").strip()
         if command:
-            app.command(json.loads(command))
+            command = json.loads(command)
+            try:
+                app.command(command)
+            except RuntimeError as error:
+                notify(command, store, str(error))
+                raise
+            notify(command, store)
         else:
             app.tick()
     finally:

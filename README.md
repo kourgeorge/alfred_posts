@@ -3,7 +3,8 @@
 **[Open Alfred Studio](https://kourgeorge.github.io/alfred_posts/)** — preview and edit
 photo, video, question, and news posts; choose caption styles; publish on demand; schedule one-time and recurring
 posts; edit AI prompts; choose a shared OpenAI model from a freshly retrieved list;
-update API credentials. See **[STUDIO.md](STUDIO.md)** for access-key setup,
+update API credentials; or send photos and videos to a private [Telegram bot](STUDIO.md#telegram-bot)
+that writes and schedules the post with AI. It runs on GitHub (Pages + Actions) or entirely on Cloudflare. See **[STUDIO.md](STUDIO.md)** for access-key setup,
 private GitHub Actions automation, deployment, and development.
 
 The original command-line workflow remains available below.

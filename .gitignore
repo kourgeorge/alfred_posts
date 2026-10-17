@@ -14,3 +14,5 @@ gateway-dist.tar.gz
 ad_pilot_output/
 ads_output/
 drive_inspect/
+.dev.vars
+.wrangler/

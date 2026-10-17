@@ -1,0 +1,23 @@
+// Cloudflare installation of Alfred Studio: website, gateway, and server in one Worker.
+// The GitHub installation (GitHub Pages + gateway/worker.js + Actions) does not use this file.
+// Setup: STUDIO.md → "Cloudflare installation".
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "alfred-studio",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Built by `npm run build:cloudflare`; /api/* goes to the Worker, everything else is static.
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+  // state.json, uploads/, and encrypted credentials (secrets.json).
+  "r2_buckets": [{ "binding": "STUDIO", "bucket_name": "alfred-studio" }],
+  // Image checks and previews (replaces Pillow).
+  "images": { "binding": "IMAGES" },
+  // Each dashboard command and each scheduled check runs as one durable Workflow.
+  "workflows": [{ "name": "alfred-studio-command", "binding": "STUDIO_WORKFLOW", "class_name": "StudioWorkflow" }],
+  // Same times as the GitHub schedule (UTC).
+  "triggers": { "crons": ["7,37 * * * *"] },
+  "observability": { "enabled": true }
+  // Worker secrets (wrangler secret put …): STUDIO_PASSWORD, SESSION_SECRET, CREDENTIALS_KEY.
+  // Optional variables: GOOGLE_API_KEY, FB_GRAPH_VERSION, TIMEZONE, INITIAL_POSTED_HISTORY, ALLOWED_ORIGINS.
+}

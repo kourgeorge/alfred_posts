@@ -5,6 +5,11 @@ Pages; GitHub Actions runs the existing Python scripts. Drafts and schedules are
 JSON files in a private Git branch. A small serverless gateway checks the studio
 password and connects to GitHub. There is no database.
 
+The same studio can also run entirely on Cloudflare (website, gateway, and a
+JavaScript copy of the server in one Worker). The two installations are separate:
+each has its own drafts, schedules, and credentials. See
+[Cloudflare installation](#cloudflare-installation).
+
 ## Repositories
 
 - **Website and source:** `kourgeorge/alfred_posts` (public)
@@ -180,6 +185,64 @@ Deploy both `gateway/worker.js` and the frontend/Python source for this feature.
 The private workflow already checks out the current Python source and needs no
 new secrets or workflow changes. Uploaded posts do not require Drive credentials.
 
+## Telegram bot
+
+Send a photo or video to a private Telegram bot, chat with the AI about the
+caption, and approve it with a button. For example: send a photo with
+"Student passed her test today, post tomorrow at 18:00", ask "make it shorter",
+then tap **Approve**. You can also ask "What is scheduled this week?" or
+"Cancel Monday's post".
+
+- **The AI sees the photo.** For a video it sees one still frame (Telegram's
+  thumbnail) plus your words, so describe what happens in the video.
+- **Nothing changes until you tap Approve.** Each suggestion shows the caption
+  and when it will be posted (draft, now, or a time in Israel time). Only the newest
+  suggestion can be approved, once, within 24 hours. **Cancel** changes nothing.
+- After **Approve**, the usual GitHub Actions job saves the post, schedules it or
+  publishes it, then sends the result to the chat (about a minute). The post
+  appears in Alfred Studio like any upload, with the same checks before publishing.
+- Captions use your saved **Photo** or **Video** writing instructions and the shared
+  **AI model**. Caption styles are not used; ask the bot for a tone instead.
+- `/start` explains the bot. `/reset` starts a new conversation. One photo or video
+  per post: from an album, only the first is used.
+- **Limits:** Telegram lets bots download files up to 20 MB, so larger videos must
+  be uploaded in Alfred Studio. Photos up to 10 MB. Telegram compresses photos sent the
+  normal way; send a photo **as a file** to keep the original quality.
+
+The bot answers only the Telegram accounts you list, in private chats. Anyone else
+who sends `/start` gets a message with their own user ID; nothing else is answered. The conversation (last 20
+messages, without images) is saved in `telegram/` on the private `studio-state`
+branch. Each message is a small OpenAI request (photos cost a little more).
+
+### Set up the bot
+
+1. In Telegram, open **@BotFather**, send `/newbot`, and copy the bot token.
+2. Create a random webhook secret, for example `openssl rand -hex 32`.
+3. In the gateway's environment settings (see [Password gateway](#password-gateway)), add:
+   - `TELEGRAM_BOT_TOKEN`: the bot token.
+   - `TELEGRAM_WEBHOOK_SECRET`: the random secret.
+   - `TELEGRAM_ALLOWED_USER_IDS`: the Telegram user IDs allowed to use the bot,
+     separated by commas. To find yours, deploy with any value, send `/start` to
+     the bot, and it replies with your ID.
+   - `OPENAI_API_KEY`: a copy of the OpenAI key. The gateway cannot read GitHub
+     Secrets, so it needs its own copy. **Changing the key in Settings does not
+     update this copy**; update both.
+   - Optional `OPENAI_MODEL`: used only until a shared model is saved in Settings.
+4. In the private automation repository, add the Actions secret `TELEGRAM_BOT_TOKEN`
+   (the same token) so the job can send results to the chat, and install the updated
+   `deployment/studio.yml`.
+5. Package and deploy the gateway (`python3 scripts/package_gateway.py`).
+6. Connect Telegram to the gateway:
+
+   ```bash
+   TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... \
+     npm run telegram:setup -- https://alfred-studio-gateway.gkour.chatgpt.site
+   ```
+
+   Run it without the address to check the connection and see the last error.
+
+The bot is available in the GitHub installation only, not in the Cloudflare installation.
+
 ## Recurring schedules
 
 Choose the format, weekdays, preferred time, timezone, and action:
@@ -354,6 +417,68 @@ runs consume more minutes. Change the cron in the private workflow to `17 * * * 
 for hourly checks if needed; update the dashboard timing copy to match. OpenAI API
 usage is billed separately. GitHub billing settings control any overage spending.
 
+## Cloudflare installation
+
+A second, independent installation where everything runs on Cloudflare's free plan:
+
+| Part | GitHub installation | Cloudflare installation |
+|---|---|---|
+| Website | GitHub Pages | the Worker's static assets (`dist/`) |
+| Gateway | `gateway/worker.js` on Sites | `cloudflare/worker.js` (same `gateway/core.js`) |
+| Server | Python in GitHub Actions (`studio/`) | JavaScript in Cloudflare Workflows (`server/`) |
+| Schedule check | Actions cron `7,37 * * * *` | Cron Trigger `7,37 * * * *` |
+| Drafts, uploads | `studio-state` Git branch | R2 bucket `alfred-studio` |
+| Credentials | Actions secrets (sealed in the browser) | `secrets.json` in R2, AES-GCM encrypted with `CREDENTIALS_KEY` |
+
+Requests start within seconds instead of waiting for an Actions runner. The JavaScript
+server mirrors the Python one: `tests/parity/cases.json` holds the Python answers for
+URL keys, schedules (including daylight-saving changes), validation messages, caption
+styles and error messages, and both `tests/test_parity.py` and `tests/server/` check them.
+When changing server behaviour, change both `studio/` and `server/`.
+
+Differences: image checks and previews use the Cloudflare Images binding instead of
+Pillow, so preview bytes differ slightly; news page fetches rely on Cloudflare's
+network to block private addresses instead of resolving DNS first.
+
+### Set up
+
+1. In the Cloudflare dashboard, enable **R2** and create a bucket named `alfred-studio`.
+2. **Workers & Pages → Create → Import a repository**, choose `kourgeorge/alfred_posts`, and set:
+   - Project name: `alfred-studio` (must match `name` in `wrangler.jsonc`)
+   - Build command: `npm run build:cloudflare`
+   - Deploy command: `npx wrangler deploy`
+   - Build variables: `NODE_VERSION` = `22`, and optionally `SKIP_DEPENDENCY_INSTALL` = `1`
+     with build command `npm ci && npm run build:cloudflare` (the Python packages are not needed).
+3. After the first deploy, open the Worker → **Settings → Variables and Secrets** and add
+   three secrets: `STUDIO_PASSWORD`, `SESSION_SECRET` and `CREDENTIALS_KEY` (each
+   `SESSION_SECRET` / `CREDENTIALS_KEY` at least 32 random characters, e.g. `openssl rand -base64 32`).
+   Changing `CREDENTIALS_KEY` makes saved credentials unreadable; enter them again.
+4. Open the Worker's address, sign in, and enter the Facebook, OpenAI, Google and Tavily
+   values on **Settings**. Optional Worker variables: `GOOGLE_API_KEY`, `FB_GRAPH_VERSION`,
+   `TIMEZONE`, `INITIAL_POSTED_HISTORY`, and `ALLOWED_ORIGINS` (extra comma-separated
+   website origins allowed to use the gateway).
+
+Only one installation should publish for a given Facebook page: pause the recurring
+schedules (or the Actions cron) of the one you are not using, so posts are not sent twice.
+
+### Free-plan limits
+
+Each Workflow step may use 10 ms of CPU time and 50 outside requests. Long jobs are
+split into steps (news search, ranking, each preview, the caption), and waiting for
+Facebook or OpenAI does not count as CPU time. Large files are the risk: a big image or a
+50 MB video may exceed the CPU limit while it is checked and sent. If a job fails that way,
+the Workers Paid plan ($5/month) raises the limit without code changes. Steps are never
+retried automatically, so an interrupted Facebook call is marked **Check Facebook**, as on GitHub.
+
+### Develop locally
+
+```bash
+printf 'STUDIO_PASSWORD="local"\nSESSION_SECRET="%s"\nCREDENTIALS_KEY="%s"\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > .dev.vars
+npm run build:cloudflare
+npx wrangler dev --test-scheduled   # visit /__scheduled to run the schedule check
+npm run test:server
+```
+
 ## Development and verification
 
 ```bash
@@ -364,6 +489,7 @@ npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 npm run test:browser
 npm run test:gateway
+npm run test:server
 ```
 
 Browser checks use locally installed Chrome plus Playwright WebKit for mobile

@@ -46,8 +46,7 @@ class MediaService:
         self.config = config
         self.uploads = Uploads(uploads) if uploads else None
 
-    def prepare_upload(self, post_type, upload_id, description, prompt=None):
-        description = validate_description(description)
+    def check_upload(self, post_type, upload_id):
         item, data = self.uploads.read(upload_id)
         if item["type"] != post_type:
             raise ValueError("The uploaded file does not match the selected post format.")
@@ -55,10 +54,23 @@ class MediaService:
         preview = thumbnail(data) if post_type == "image" else None
         if post_type == "image" and not preview:
             raise ValueError("This image could not be previewed. Choose a different image.")
+        source = {"key": f"upload:{upload_id}", "upload_id": upload_id, "name": item["name"],
+                  "sha256": item["sha256"], "size": item["size"], "mime": item["mime"], "parts": item["parts"]}
+        return source, preview
+
+    def prepare_upload(self, post_type, upload_id, description, prompt=None):
+        description = validate_description(description)
+        source, preview = self.check_upload(post_type, upload_id)
         text = content.generate_upload_post_text(self.config, post_type, description, system_prompt=prompt)
-        return {"source": {"key": f"upload:{upload_id}", "upload_id": upload_id, "name": item["name"],
-                           "sha256": item["sha256"], "size": item["size"], "mime": item["mime"],
-                           "parts": item["parts"], "description": description}, "text": text, "preview": preview}
+        return {"source": {**source, "description": description}, "text": text, "preview": preview}
+
+    def prepare_upload_text(self, post_type, upload_id, text, description=None):
+        """An upload whose caption was already written and approved (the Telegram bot)."""
+        source, preview = self.check_upload(post_type, upload_id)
+        source["origin"] = "telegram"
+        if description:
+            source["description"] = validate_description(description)
+        return {"source": source, "text": text, "preview": preview}
 
     def prepare(self, post_type, posted, prompt=None, *, selection_prompt=None):
         c = self.config

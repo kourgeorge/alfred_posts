@@ -22,4 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:gateway
+      # The Cloudflare (JavaScript) worker, including parity with the Python worker.
+      - run: npm run test:server
       - run: npm run build
+      - run: npm run build:cloudflare && npx wrangler deploy --dry-run --outdir /tmp/cloudflare-check

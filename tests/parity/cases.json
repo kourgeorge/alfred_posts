@@ -1,0 +1,701 @@
+{
+ "urls": [
+  {
+   "url": "https://www.ynet.co.il/transport/article/test",
+   "public_url": "https://www.ynet.co.il/transport/article/test",
+   "article_key": "news:26120586486600df22845c869ca4c7bb2f89e3d7e70ccf28096657f754bedf72"
+  },
+  {
+   "url": "https://www.ynet.co.il/transport/article/test/?utm_source=email&a=1#top",
+   "public_url": "https://www.ynet.co.il/transport/article/test/?utm_source=email&a=1",
+   "article_key": "news:84edc64fe35ce25d62755d9145ff8f19371e9b6ab9f8702963d5f8fa5348ab8f"
+  },
+  {
+   "url": "https://WWW.Reuters.com/world/Bus/?b=2&fbclid=x&a=&c=hello+world&d=%D7%A9%D7%9C%D7%95%D7%9D",
+   "public_url": "https://WWW.Reuters.com/world/Bus/?b=2&fbclid=x&a=&c=hello+world&d=%D7%A9%D7%9C%D7%95%D7%9D",
+   "article_key": "news:a616125deaf011ccadcfcabbe6bb159396017d1f43e04a47e2d55fb80b00f251"
+  },
+  {
+   "url": "https://example.com",
+   "public_url": "https://example.com/",
+   "article_key": "news:100680ad546ce6a577f42f52df33b4cfdca756859e664b8d7de329b150d09ce9"
+  },
+  {
+   "url": "https://example.com:443/x?q=a%20b&q=c",
+   "public_url": "https://example.com:443/x?q=a%20b&q=c",
+   "article_key": "news:aba28dc03b40ead359f0c07ff06b7074527e88a7bde764a0a8a00b2980a8231a"
+  },
+  {
+   "url": "http://example.com",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://localhost",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://127.0.0.1/file",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://x.local/file",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://user:password@example.com",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://example.com:8000",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://169.254.169.254/",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://8.8.8.8/dns",
+   "public_url": "https://8.8.8.8/dns",
+   "article_key": "news:2a912d673285124a0589a533ea100f09b62a1172e6180bf4a67a28275225e90d"
+  },
+  {
+   "url": "https://10.0.0.1/",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://[::1]/",
+   "public_url": null,
+   "article_key": null
+  },
+  {
+   "url": "https://news.example.org/a b?x=1;y=2",
+   "public_url": "https://news.example.org/a b?x=1;y=2",
+   "article_key": "news:9403d886ae93a9388a612d54f8906f635d68bda6d65be463b1afe151ccdfd896"
+  },
+  {
+   "url": "https://www.walla.co.il/item/3712345?gclid=abc&utm_medium=social&ref=home",
+   "public_url": "https://www.walla.co.il/item/3712345?gclid=abc&utm_medium=social&ref=home",
+   "article_key": "news:c6b7ed4caf7b18cd4cd1e30ff45799705cdd55f52ef2e6bd7bcde11021db589e"
+  },
+  {
+   "url": " https://www.bbc.com/news/world-123 ",
+   "public_url": "https://www.bbc.com/news/world-123 ",
+   "article_key": "news:5d640a6853a6998d21f018cfb8b38adcfbf033b6e4109c1783963ce30ad8815f"
+  },
+  {
+   "url": "https://example.com/%7Euser/?q=%7e&r=*",
+   "public_url": "https://example.com/%7Euser/?q=%7e&r=*",
+   "article_key": "news:d49b70453d6c6110f29855eee841dada6500aafc4bd1efc0b8f833dbc507cbf9"
+  },
+  {
+   "url": "https://example.com/path?flag&x=1",
+   "public_url": "https://example.com/path?flag&x=1",
+   "article_key": "news:ebd2ea6702a3d697275ef9eafa02e8e23e548985d90cca37d4342fb8f5c2bb01"
+  }
+ ],
+ "schedules": [
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "09:00",
+    "days": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-10-02T06:10:00+00:00",
+   "due_slot": "2026-10-02@09:00",
+   "slots": [
+    [
+     "2026-10-02@09:00",
+     "2026-10-02T06:00:00+00:00"
+    ],
+    [
+     "2026-10-01@09:00",
+     "2026-10-01T06:00:00+00:00"
+    ],
+    [
+     "2026-09-30@09:00",
+     "2026-09-30T06:00:00+00:00"
+    ],
+    [
+     "2026-09-29@09:00",
+     "2026-09-29T06:00:00+00:00"
+    ],
+    [
+     "2026-09-28@09:00",
+     "2026-09-28T06:00:00+00:00"
+    ],
+    [
+     "2026-09-25@09:00",
+     "2026-09-25T06:00:00+00:00"
+    ],
+    [
+     "2026-09-24@09:00",
+     "2026-09-24T06:00:00+00:00"
+    ],
+    [
+     "2026-09-23@09:00",
+     "2026-09-23T06:00:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "09:00",
+    "days": [
+     2
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-12-02T06:10:00+00:00",
+   "due_slot": null,
+   "slots": [
+    [
+     "2026-11-25@09:00",
+     "2026-11-25T07:00:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "09:00",
+    "days": [
+     2
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-12-02T07:10:00+00:00",
+   "due_slot": "2026-12-02@09:00",
+   "slots": [
+    [
+     "2026-12-02@09:00",
+     "2026-12-02T07:00:00+00:00"
+    ],
+    [
+     "2026-11-25@09:00",
+     "2026-11-25T07:00:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "02:30",
+    "days": [
+     6
+    ],
+    "timezone": "America/New_York",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-03-08T08:00:00+00:00",
+   "due_slot": null,
+   "slots": [
+    [
+     "2026-03-01@02:30",
+     "2026-03-01T07:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "01:30",
+    "days": [
+     6
+    ],
+    "timezone": "America/New_York",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-11-01T05:35:00+00:00",
+   "due_slot": "2026-11-01@01:30",
+   "slots": [
+    [
+     "2026-11-01@01:30",
+     "2026-11-01T05:30:00+00:00"
+    ],
+    [
+     "2026-10-25@01:30",
+     "2026-10-25T05:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "01:30",
+    "days": [
+     6
+    ],
+    "timezone": "America/New_York",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-11-01T06:35:00+00:00",
+   "due_slot": "2026-11-01@01:30",
+   "slots": [
+    [
+     "2026-11-01@01:30",
+     "2026-11-01T05:30:00+00:00"
+    ],
+    [
+     "2026-10-25@01:30",
+     "2026-10-25T05:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "01:30",
+    "days": [
+     6
+    ],
+    "timezone": "Europe/London",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-03-29T03:00:00+00:00",
+   "due_slot": null,
+   "slots": [
+    [
+     "2026-03-22@01:30",
+     "2026-03-22T01:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "01:30",
+    "days": [
+     6
+    ],
+    "timezone": "Europe/London",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-10-25T02:00:00+00:00",
+   "due_slot": "2026-10-25@01:30",
+   "slots": [
+    [
+     "2026-10-25@01:30",
+     "2026-10-25T00:30:00+00:00"
+    ],
+    [
+     "2026-10-18@01:30",
+     "2026-10-18T00:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "02:30",
+    "days": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-03-27T03:00:00+00:00",
+   "due_slot": null,
+   "slots": [
+    [
+     "2026-03-26@02:30",
+     "2026-03-26T00:30:00+00:00"
+    ],
+    [
+     "2026-03-25@02:30",
+     "2026-03-25T00:30:00+00:00"
+    ],
+    [
+     "2026-03-24@02:30",
+     "2026-03-24T00:30:00+00:00"
+    ],
+    [
+     "2026-03-23@02:30",
+     "2026-03-23T00:30:00+00:00"
+    ],
+    [
+     "2026-03-22@02:30",
+     "2026-03-22T00:30:00+00:00"
+    ],
+    [
+     "2026-03-21@02:30",
+     "2026-03-21T00:30:00+00:00"
+    ],
+    [
+     "2026-03-20@02:30",
+     "2026-03-20T00:30:00+00:00"
+    ],
+    [
+     "2026-03-19@02:30",
+     "2026-03-19T00:30:00+00:00"
+    ],
+    [
+     "2026-03-18@02:30",
+     "2026-03-18T00:30:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "23:55",
+    "days": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "timezone": "Australia/Sydney",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-10-06T13:00:00+00:00",
+   "due_slot": "2026-10-06@23:55",
+   "slots": [
+    [
+     "2026-10-06@23:55",
+     "2026-10-06T12:55:00+00:00"
+    ],
+    [
+     "2026-10-05@23:55",
+     "2026-10-05T12:55:00+00:00"
+    ],
+    [
+     "2026-10-04@23:55",
+     "2026-10-04T12:55:00+00:00"
+    ],
+    [
+     "2026-10-03@23:55",
+     "2026-10-03T13:55:00+00:00"
+    ],
+    [
+     "2026-10-02@23:55",
+     "2026-10-02T13:55:00+00:00"
+    ],
+    [
+     "2026-10-01@23:55",
+     "2026-10-01T13:55:00+00:00"
+    ],
+    [
+     "2026-09-30@23:55",
+     "2026-09-30T13:55:00+00:00"
+    ],
+    [
+     "2026-09-29@23:55",
+     "2026-09-29T13:55:00+00:00"
+    ],
+    [
+     "2026-09-28@23:55",
+     "2026-09-28T13:55:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "23:55",
+    "days": [
+     4
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-10-02T21:07:00+00:00",
+   "due_slot": "2026-10-02@23:55",
+   "slots": [
+    [
+     "2026-10-02@23:55",
+     "2026-10-02T20:55:00+00:00"
+    ],
+    [
+     "2026-09-25@23:55",
+     "2026-09-25T20:55:00+00:00"
+    ]
+   ]
+  },
+  {
+   "schedule": {
+    "name": "Morning",
+    "time": "9:5",
+    "days": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ],
+    "timezone": "Asia/Jerusalem",
+    "type": "image",
+    "mode": "draft",
+    "enabled": true
+   },
+   "now": "2026-10-02T07:00:00+00:00",
+   "due_slot": "2026-10-02@9:5",
+   "slots": [
+    [
+     "2026-10-02@9:5",
+     "2026-10-02T06:05:00+00:00"
+    ],
+    [
+     "2026-10-01@9:5",
+     "2026-10-01T06:05:00+00:00"
+    ],
+    [
+     "2026-09-30@9:5",
+     "2026-09-30T06:05:00+00:00"
+    ],
+    [
+     "2026-09-29@9:5",
+     "2026-09-29T06:05:00+00:00"
+    ],
+    [
+     "2026-09-28@9:5",
+     "2026-09-28T06:05:00+00:00"
+    ],
+    [
+     "2026-09-25@9:5",
+     "2026-09-25T06:05:00+00:00"
+    ],
+    [
+     "2026-09-24@9:5",
+     "2026-09-24T06:05:00+00:00"
+    ],
+    [
+     "2026-09-23@9:5",
+     "2026-09-23T06:05:00+00:00"
+    ]
+   ]
+  }
+ ],
+ "validate_schedule": [
+  {
+   "input": {
+    "name": "  "
+   },
+   "error": "Give the schedule a name of 1–100 characters."
+  },
+  {
+   "input": {
+    "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "error": "Give the schedule a name of 1–100 characters."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "news"
+   },
+   "error": "Choose a photo, video, or question."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "x"
+   },
+   "error": "Choose whether to prepare a draft or publish automatically."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "x"
+   },
+   "error": "time data 'x' does not match format '%H:%M'"
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "25:00"
+   },
+   "error": "time data '25:00' does not match format '%H:%M'"
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "09:00"
+   },
+   "error": "Choose at least one weekday."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "09:00",
+    "days": [
+     true
+    ]
+   },
+   "error": "Choose at least one weekday."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "09:00",
+    "days": [
+     7
+    ]
+   },
+   "error": "Choose at least one weekday."
+  },
+  {
+   "input": {
+    "name": "A",
+    "type": "image",
+    "mode": "draft",
+    "time": "",
+    "days": [
+     1
+    ]
+   },
+   "error": "time data '' does not match format '%H:%M'"
+  },
+  {
+   "input": {
+    "name": null,
+    "type": "image",
+    "mode": "draft",
+    "time": "09:00",
+    "days": [
+     1
+    ]
+   },
+   "value": {
+    "name": "None",
+    "type": "image",
+    "mode": "draft",
+    "timezone": "Asia/Jerusalem",
+    "time": "09:00",
+    "days": [
+     1
+    ],
+    "enabled": true
+   }
+  },
+  {
+   "input": {
+    "name": " Morning ",
+    "type": "video",
+    "mode": "publish",
+    "time": "09:00",
+    "days": [
+     3,
+     1,
+     1
+    ]
+   },
+   "value": {
+    "name": "Morning",
+    "type": "video",
+    "mode": "publish",
+    "timezone": "Asia/Jerusalem",
+    "time": "09:00",
+    "days": [
+     1,
+     3
+    ],
+    "enabled": true
+   }
+  }
+ ],
+ "caption_prompt": [
+  {
+   "type": "image",
+   "prompt": null,
+   "style": "default",
+   "result": null
+  },
+  {
+   "type": "image",
+   "prompt": "Mine",
+   "style": "default",
+   "result": "Mine"
+  },
+  {
+   "type": "question",
+   "prompt": null,
+   "style": "funny",
+   "result": "אתה אלפרד קור, מורה נהיגה. כתוב משפט פתיחה קצר בעברית לפוסט של שאלת תיאוריה בנושא הנתון.\nהמשפט צריך להזמין את הקוראים לחשוב ולהשתתף. כתוב רק את משפט הפתיחה.\nאל תכלול שאלה, תשובה, רמז לפתרון, עובדות חדשות, קישורים או פרטי קשר.\nהשאלה המקורית, כל התשובות והקישורים יצורפו אוטומטית לאחר הפתיח.\n\nCaption style for this draft: Funny.\nUse light, relatable humor and playful phrasing about learning to drive. Keep it kind; never mock learners or make unsafe driving sound acceptable.\nApply this style to tone and phrasing only. If earlier tone instructions conflict, use this style for this draft. Keep the requested language, facts, required details, links and calls to action. Do not invent facts, quotations, testimonials or real events to achieve the style. For quizzes, style only the introduction and never reveal or hint at the answer."
+  },
+  {
+   "type": "news",
+   "prompt": "Saved",
+   "style": "neutral",
+   "result": "Saved\n\nCaption style for this draft: Neutral.\nUse a clear, matter-of-fact, balanced tone. Avoid jokes, hype, and emotional exaggeration.\nApply this style to tone and phrasing only. If earlier tone instructions conflict, use this style for this draft. Keep the requested language, facts, required details, links and calls to action. Do not invent facts, quotations, testimonials or real events to achieve the style. For quizzes, style only the introduction and never reveal or hint at the answer."
+  }
+ ],
+ "safe_error": [
+  {
+   "message": "Facebook post failed (400): {\"error\":{\"code\":190}}",
+   "result": "Facebook access token is invalid or expired. Update it in Settings."
+  },
+  {
+   "message": "Facebook post failed (403): {\"error\": {\"code\" : 200}}",
+   "result": "Facebook rejected the request (code 200). Check page permissions and credentials."
+  },
+  {
+   "message": "Something else {\"code\": 5}",
+   "result": "The operation failed. Check credentials and the workflow log, then refresh the dashboard."
+  },
+  {
+   "message": "Timeout",
+   "result": "The operation failed. Check credentials and the workflow log, then refresh the dashboard."
+  }
+ ]
+}

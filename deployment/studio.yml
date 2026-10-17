@@ -56,3 +56,4 @@ jobs:
           FB_GRAPH_VERSION: ${{ secrets.FB_GRAPH_VERSION || 'v23.0' }}
           TIMEZONE: Asia/Jerusalem
           INITIAL_POSTED_HISTORY: ${{ secrets.INITIAL_POSTED_HISTORY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

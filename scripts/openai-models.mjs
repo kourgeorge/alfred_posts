@@ -34,7 +34,8 @@ export async function modelRequest(apiKey, model, request = fetch) {
   return {ids, refreshed_at:new Date().toISOString()};
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Command-line use only; the Cloudflare worker imports modelRequest directly.
+if (globalThis.process?.argv?.[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try { console.log(JSON.stringify(await modelRequest(process.env.OPENAI_API_KEY, process.argv[2]))); }
   catch { // Provider errors may contain credentials; never copy them to state or logs.
     console.error('OpenAI model request failed. Check your API key, model access and billing, then try again.');
