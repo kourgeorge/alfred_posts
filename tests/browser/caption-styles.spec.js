@@ -10,7 +10,7 @@ const styles = ['Saved style', 'Neutral', 'Funny', 'Friendly', 'Professional', '
 test('manual library requests carry the style and publishing keeps the reviewed caption', async ({ page }) => {
   const remote = demoState();
   const requests = [];
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**', async route => {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/commands') {
       const command = route.request().postDataJSON();

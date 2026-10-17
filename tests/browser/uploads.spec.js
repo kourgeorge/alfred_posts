@@ -66,7 +66,7 @@ test('uploading a video selects its format and keeps the original available in t
 
 test('a failed chunk upload retries with the same file and dispatches only its reference and description',async({page})=> {
   const remote=demoState();const requests=[];const parts=new Map();let fail=true;let manifest;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const req=route.request();const path=new URL(req.url()).pathname;const value=req.postDataJSON();
     requests.push({path,value,auth:req.headers().authorization});
     let body=remote;
@@ -116,7 +116,7 @@ test('saved uploaded video plays through authenticated storage after a fresh log
   const remote=demoState();const reads=[];
   remote.drafts.unshift({id:'uploaded-video',type:'video',status:'draft',revision:1,text:'Parking lesson',created_at:new Date().toISOString(),
     source:{key:`upload:${uploadId}`,upload_id:uploadId,name:'parking.mp4',mime:'video/mp4',size:video.length,parts:1,sha256:createHash('sha256').update(video).digest('hex')}});
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=>{
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=>{
     const req=route.request();const path=new URL(req.url()).pathname;
     let body=path==='/api/login'?{token:'test-session',repository:'kourgeorge/alfred_posts_automation'}:remote;
     if(path.includes('/parts/')) {reads.push(req.headers().authorization);body={content:video.toString('base64'),size:video.length};}
@@ -137,7 +137,7 @@ test('saved uploaded video plays through authenticated storage after a fresh log
 
 test('unsupported uploads are rejected and locking cancels a transfer before generation',async({page})=>{
   const remote=demoState();let release;let dispatched=false;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=>{
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=>{
     const path=new URL(route.request().url()).pathname;
     if(path.includes('/parts/'))await new Promise(resolve=>release=resolve);
     if(path==='/api/commands')dispatched=true;

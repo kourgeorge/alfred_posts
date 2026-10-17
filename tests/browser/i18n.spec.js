@@ -134,7 +134,7 @@ test('language switching preserves uploads and works without browser storage', a
 test('authentication errors and pending work follow the selected language', async ({ page }) => {
   const remote = demoState();
   let valid = false;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**', async route => {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/login' && !valid) return route.fulfill({ status: 401, json: { error: 'Incorrect password. Please try again.' } });
     if (path === '/api/commands') return route.fulfill({ status: 204, body: '' });

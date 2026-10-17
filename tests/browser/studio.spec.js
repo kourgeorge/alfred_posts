@@ -96,7 +96,7 @@ test('Password login, dispatch payload and encrypted secrets use the gateway', a
   const keyPair=sodium.crypto_box_keypair();
   const requests=[];
   const initial=demoState();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const req=route.request();const url=new URL(req.url());requests.push({url:url.pathname,body:req.postData(),auth:req.headers().authorization});
     let body={};
     if(url.pathname.endsWith('/login')) return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({token:'test-session',repository:'kourgeorge/alfred_posts_automation'})});
@@ -157,7 +157,7 @@ test('manual schedule check reviews due work, dispatches once and reports comple
   remote.drafts[1].status='scheduled';remote.drafts[1].scheduled_at='2099-10-03T07:00:00Z';
   const sent=[];
   await page.clock.install({time:new Date('2026-10-03T10:19:00Z')});
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const request=route.request();const path=new URL(request.url()).pathname;
     if(path==='/api/commands') {
       sent.push(request.postDataJSON());
@@ -209,7 +209,7 @@ for (const width of [1440,390]) test(`GitHub waiting and running feedback stays 
   const acceptance=new Promise(resolve=>{accept=resolve;});
   await page.setViewportSize({width,height:850});
   await page.clock.install();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const path=new URL(route.request().url()).pathname;
     if(path==='/api/commands') {
       sent.push(route.request().postDataJSON());
@@ -284,7 +284,7 @@ test('Activity keeps future schedules separate from missed and overdue work need
   Object.assign(remote.drafts[2],{status:'scheduled',scheduled_at:'2026-10-03T07:00:00Z'});
   remote.missed_runs=[{id:'missed-run-1',schedule_id:'deleted-schedule',slot:'2026-10-02@10:10',name:'A missed photo',type:'image',mode:'publish',scheduled_at:'2026-10-02T07:10:00Z',status:'missed'}];
   let sent;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const req=route.request();const path=new URL(req.url()).pathname;
     if(path==='/api/commands') {
       sent=req.postDataJSON();
@@ -358,7 +358,7 @@ test('overdue and missed schedule status is visible without a worker update',asy
     timezone:'Asia/Jerusalem',time:'10:10',days:[5],starts_at:'2026-10-03T07:06:46Z'}];
   remote.scheduler={last_finished_at:'2026-10-03T05:00:15Z'};
   await page.clock.install({time:new Date('2026-10-03T10:19:00Z')});
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const path=new URL(route.request().url()).pathname;
     const body=path==='/api/login'?{token:'test-session',repository:'kourgeorge/alfred_posts_automation'}:remote;
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
@@ -385,7 +385,7 @@ test('a background update cannot replace the caption or revision being previewed
   const original=remote.drafts[0].text;
   let dispatched;
   await page.clock.install();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const url=new URL(route.request().url());
     let body={};
     if(url.pathname.endsWith('/login'))body={token:'test-session',repository:'kourgeorge/alfred_posts_automation'};
@@ -459,7 +459,7 @@ test('prompt editing, format switching, demo saves and restore default preserve 
 test('saved prompts survive login and stale edits cannot replace newer prompts',async({page})=> {
   const remote=demoState();let sent;
   await page.clock.install();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const req=route.request();const path=new URL(req.url()).pathname;
     let body={secrets:[]};
     if(path==='/api/login')body={token:'test-session',repository:'kourgeorge/alfred_posts_automation'};
@@ -503,7 +503,7 @@ test('saved prompts survive login and stale edits cannot replace newer prompts',
 
 test('wrong password stays locked and an expired session clears private content', async ({page}) => {
   let authorized = false;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**', async route => {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**', async route => {
     const req = route.request(); const path = new URL(req.url()).pathname;
     let body = {error:'Incorrect password. Please try again.'}; let status = 401;
     if (path === '/api/login' && req.postDataJSON().password === 'test-password') {

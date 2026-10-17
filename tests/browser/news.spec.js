@@ -42,7 +42,7 @@ test('news generation sends the style, disables duplicate requests and displays 
   const requests = [];
   let fail = true;
   let finish;
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**', async route => {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**', async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/commands') {
       const command = route.request().postDataJSON();

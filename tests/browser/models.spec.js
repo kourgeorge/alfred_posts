@@ -55,7 +55,7 @@ test('fresh models, persisted saves, stale edits and provider failures',async({p
   let fail=false, finish;
   const commands=[];
   await page.clock.install();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const path=new URL(route.request().url()).pathname;
     if(path==='/api/commands') {
       const command=route.request().postDataJSON();commands.push(command);

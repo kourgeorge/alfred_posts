@@ -16,7 +16,7 @@ for (const width of [1440,390]) test(`saved settings and replacement visibility 
   remote.connection_settings.values.OPENAI_MODEL_VIDEO='different-video-model';
   const saved={};const commands=[];
   await page.setViewportSize({width,height:950});
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const request=route.request();const path=new URL(request.url()).pathname;
     let body={};
     if(path==='/api/login')body={token:'test-session',repository:'kourgeorge/alfred_posts_automation'};
@@ -76,7 +76,7 @@ test('refresh loads older installations and polling preserves in-progress edits'
   const remote=demoState();delete remote.connection_settings;
   const commands=[];
   await page.clock.install();
-  await page.route('https://alfred-studio-gateway.gkour.chatgpt.site/**',async route=> {
+  await page.route('https://alfred-studio-gateway.kourgeorge.workers.dev/**',async route=> {
     const path=new URL(route.request().url()).pathname;
     if(path==='/api/commands') {
       const command=route.request().postDataJSON();commands.push(command);
