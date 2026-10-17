@@ -52,9 +52,10 @@ instance; this is best-effort protection, not a global rate limiter.
 
 ## Password gateway
 
-The gateway is hosted at https://alfred-studio-gateway.gkour.chatgpt.site using Sites.
-Its source is `gateway/worker.js`; the associated project ID is in
-`.openai/hosting.json`. Runtime secrets are managed in that site's environment settings:
+The gateway is a Cloudflare Worker at https://alfred-studio-gateway.kourgeorge.workers.dev.
+Its source is `gateway/worker.js` and its settings are in `gateway/wrangler.jsonc`.
+Deploy it with `npx wrangler deploy -c gateway/wrangler.jsonc`. Runtime secrets are set with
+`npx wrangler secret put NAME -c gateway/wrangler.jsonc`:
 
 - `STUDIO_PASSWORD`: the one password used to open the dashboard.
 - `SESSION_SECRET`: a random server-side signing secret (at least 32 random bytes).
@@ -218,7 +219,7 @@ branch. Each message is a small OpenAI request (photos cost a little more).
 
 1. In Telegram, open **@BotFather**, send `/newbot`, and copy the bot token.
 2. Create a random webhook secret, for example `openssl rand -hex 32`.
-3. In the gateway's environment settings (see [Password gateway](#password-gateway)), add:
+3. Add these gateway secrets (see [Password gateway](#password-gateway)):
    - `TELEGRAM_BOT_TOKEN`: the bot token.
    - `TELEGRAM_WEBHOOK_SECRET`: the random secret.
    - `TELEGRAM_ALLOWED_USER_IDS`: the Telegram user IDs allowed to use the bot,
@@ -231,12 +232,12 @@ branch. Each message is a small OpenAI request (photos cost a little more).
 4. In the private automation repository, add the Actions secret `TELEGRAM_BOT_TOKEN`
    (the same token) so the job can send results to the chat, and install the updated
    `deployment/studio.yml`.
-5. Package and deploy the gateway (`python3 scripts/package_gateway.py`).
+5. Deploy the gateway (`npx wrangler deploy -c gateway/wrangler.jsonc`).
 6. Connect Telegram to the gateway:
 
    ```bash
    TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... \
-     npm run telegram:setup -- https://alfred-studio-gateway.gkour.chatgpt.site
+     npm run telegram:setup -- https://alfred-studio-gateway.kourgeorge.workers.dev
    ```
 
    Run it without the address to check the connection and see the last error.

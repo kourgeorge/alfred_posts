@@ -1,0 +1,15 @@
+// The GitHub installation's password gateway (and Telegram bot) as a Cloudflare Worker.
+// Not the full Cloudflare installation: that uses ../wrangler.jsonc.
+// Deploy: npx wrangler deploy -c gateway/wrangler.jsonc
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "alfred-studio-gateway",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+  // Worker secrets (wrangler secret put … -c gateway/wrangler.jsonc): STUDIO_PASSWORD, SESSION_SECRET,
+  // GITHUB_TOKEN, and for the Telegram bot TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET,
+  // TELEGRAM_ALLOWED_USER_IDS, OPENAI_API_KEY (optional OPENAI_MODEL).
+}
