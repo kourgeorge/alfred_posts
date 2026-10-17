@@ -220,6 +220,23 @@ test('repeated updates, large files, unsupported files and AI failures are handl
   assert.deepEqual(fake.chat().messages, []);
 });
 
+test('a reasoning model that needs reasoning turned off for tools is retried once with it off', async () => {
+  const fake = world({ state: { drafts: [], schedules: [], operations: [], ai_settings: { model: 'reasoning-model' } } });
+  const requests = [];
+  const telegramFetch = globalThis.fetch;
+  mock.method(globalThis, 'fetch', async (url, options = {}) => {
+    if (String(url) !== 'https://api.openai.com/v1/chat/completions') return telegramFetch(url, options);
+    const body = JSON.parse(options.body); requests.push(body);
+    if (body.reasoning_effort !== 'none') return Response.json({ error: { message: "Function tools with reasoning_effort are not supported for reasoning-model in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } }, { status: 400 });
+    return Response.json({ choices: [{ message: { role: 'assistant', content: 'Hello!' } }] });
+  });
+  await webhook(message({ text: 'hi' }));
+  await webhook(message({ text: 'again' }));
+  assert.deepEqual(requests.map(r => r.reasoning_effort ?? null), [null, 'none', 'none']);
+  assert.ok(requests.every(r => r.model === 'reasoning-model' && r.tools.length === 3));
+  assert.deepEqual(fake.sent.filter(m => m.method === 'sendMessage').map(m => m.text), ['Hello!', 'Hello!']);
+});
+
 test('Hebrew users get Hebrew bot messages', async () => {
   const fake = world();
   await webhook(message({ text: '/start' }, from(OWNER, 'he')));

@@ -261,18 +261,30 @@ function tools(chat, state, now) {
   return result;
 }
 
+// Some reasoning models accept tools in Chat Completions only with reasoning turned off,
+// while older models reject the setting. Remember which models needed it.
+const reasoningOff = new Set();
+
 async function openai(env, model, messages) {
-  let response;
-  try {
-    response = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', signal: AbortSignal.timeout(90000),
-      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, tools: TOOLS }) });
-  } catch { throw new Notice('ai'); }
-  // Never keep the provider body: it can echo request details.
-  if (!response.ok) { console.error('OpenAI request failed', response.status); throw new Notice('ai'); }
-  const message = (await response.json().catch(() => null))?.choices?.[0]?.message;
-  if (!message) throw new Notice('ai');
-  return message;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let response;
+    try {
+      response = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', signal: AbortSignal.timeout(90000),
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, tools: TOOLS, ...(reasoningOff.has(model) ? { reasoning_effort: 'none' } : {}) }) });
+    } catch (error) { console.error('OpenAI connection failed', error?.name ?? 'Error'); throw new Notice('ai'); }
+    const value = await response.json().catch(() => null);
+    if (response.ok && value?.choices?.[0]?.message) return value.choices[0].message;
+    // Never log the provider body: it can echo request details. The error code and type are safe.
+    const problem = String(value?.error?.message ?? '');
+    if (response.status === 400 && !reasoningOff.has(model) && /reasoning_effort/.test(problem) && /'none'/.test(problem)) {
+      reasoningOff.add(model);
+      continue;
+    }
+    console.error('OpenAI request failed', response.status, value?.error?.code ?? '', value?.error?.type ?? '', model);
+    throw new Notice('ai');
+  }
+  throw new Notice('ai');
 }
 
 function proposalText(ctx, proposal) {
