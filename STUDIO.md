@@ -203,7 +203,7 @@ then tap **Approve**. You can also ask "What is scheduled this week?" or
   publishes it, then sends the result to the chat (about a minute). The post
   appears in Alfred Studio like any upload, with the same checks before publishing.
 - Captions use your saved **Photo** or **Video** writing instructions and the shared
-  **AI model**. Caption styles are not used; ask the bot for a tone instead.
+  **AI model** (or the bot's own model, `TELEGRAM_OPENAI_MODEL`). Caption styles are not used; ask the bot for a tone instead.
 - `/start` explains the bot. `/reset` starts a new conversation. One photo or video
   per post: from an album, only the first is used.
 - **Limits:** Telegram lets bots download files up to 20 MB, so larger videos must
@@ -228,7 +228,8 @@ branch. Each message is a small OpenAI request (photos cost a little more).
    - `OPENAI_API_KEY`: a copy of the OpenAI key. The gateway cannot read GitHub
      Secrets, so it needs its own copy. **Changing the key in Settings does not
      update this copy**; update both.
-   - Optional `OPENAI_MODEL`: used only until a shared model is saved in Settings.
+   - Optional `TELEGRAM_OPENAI_MODEL`: a model for the bot only, instead of the shared
+     **AI model** from Settings. Optional `OPENAI_MODEL`: used only when neither is set.
 4. In the private automation repository, add the Actions secret `TELEGRAM_BOT_TOKEN`
    (the same token) so the job can send results to the chat, and install the updated
    `deployment/studio.yml`.

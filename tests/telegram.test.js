@@ -234,7 +234,12 @@ test('a reasoning model that needs reasoning turned off for tools is retried onc
   await webhook(message({ text: 'again' }));
   assert.deepEqual(requests.map(r => r.reasoning_effort ?? null), [null, 'none', 'none']);
   assert.ok(requests.every(r => r.model === 'reasoning-model' && r.tools.length === 3));
-  assert.deepEqual(fake.sent.filter(m => m.method === 'sendMessage').map(m => m.text), ['Hello!', 'Hello!']);
+  // A bot-only model takes priority over the studio's shared model.
+  await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.TELEGRAM_WEBHOOK_SECRET },
+    body: JSON.stringify({ update_id: ++updateId, ...message({ text: 'third' }) }) }), { ...env, TELEGRAM_OPENAI_MODEL: 'bot-model' });
+  assert.equal(requests.at(-1).model, 'bot-model');
+  assert.deepEqual(fake.sent.filter(m => m.method === 'sendMessage').map(m => m.text), ['Hello!', 'Hello!', 'Hello!']);
 });
 
 test('Hebrew users get Hebrew bot messages', async () => {

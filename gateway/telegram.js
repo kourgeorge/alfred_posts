@@ -307,7 +307,8 @@ async function converse(ctx, userText) {
     .then(bytes => `data:${vision.mime};base64,${base64(bytes)}`).catch(() => null) : null;
   const messages = [{ role: 'system', content: systemPrompt(chat, state, now) }, ...chat.messages,
     { role: 'user', content: image ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: image } }] : userText }];
-  const model = state.ai_settings?.model || ctx.env.OPENAI_MODEL || 'gpt-4.1-mini';
+  // TELEGRAM_OPENAI_MODEL gives the bot its own model; otherwise it shares the studio's.
+  const model = ctx.env.TELEGRAM_OPENAI_MODEL || state.ai_settings?.model || ctx.env.OPENAI_MODEL || 'gpt-4.1-mini';
   let reply = '';
   for (let round = 0; round < 4; round++) {
     const message = await openai(ctx.env, model, messages);
