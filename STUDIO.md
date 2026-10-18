@@ -195,19 +195,32 @@ new secrets or workflow changes. Uploaded posts do not require Drive credentials
 Send a photo or video to a private Telegram bot, chat with the AI about the
 caption, and approve it with a button. For example: send a photo with
 "Student passed her test today, post tomorrow at 18:00", ask "make it shorter",
-then tap **Approve**. You can also ask "What is scheduled this week?" or
-"Cancel Monday's post".
+then tap **Approve**.
+
+The bot can also do what the website does with posts and schedules:
+
+- **See your posts:** "What is scheduled this week?", "Show my drafts",
+  "What needs attention?" (failed, overdue, and missed schedule runs).
+- **Change a saved post:** its caption, its time ("move the previous post to the 19th
+  at 18:00"), publish it now, move it back to drafts, or replace its photo or video
+  with one you send in the chat. No new photo is needed to change a time or caption.
+- **Delete a post**, or **create a new draft** from your Drive folder, Google Forms or
+  the news, in any caption style ("make a funny news post").
+- **Recurring schedules:** list them with their next run, create one, change its days,
+  time, format or mode, pause, resume or delete it.
+- **Missed runs:** prepare the post for a missed run, or run the schedule check now.
 
 - **The AI sees the photo.** For a video it sees one still frame (Telegram's
   thumbnail) plus your words, so describe what happens in the video.
-- **Nothing changes until you tap Approve.** Each suggestion shows the caption
-  and when it will be posted (draft, now, or a time in Israel time). Only the newest
+- **Nothing changes until you tap Approve.** Questions are answered straight away,
+  but every change is shown first: the caption and when it will be posted, or what
+  will change in a post or schedule. One change waits at a time. Only the newest
   suggestion can be approved, once, within 24 hours. **Cancel** changes nothing.
-- After **Approve**, the usual GitHub Actions job saves the post, schedules it or
-  publishes it, then sends the result to the chat (about a minute). The post
+- After **Approve**, the usual GitHub Actions job runs the same command as the
+  website, then sends the result to the chat (about a minute). The post
   appears in Alfred Studio like any upload, with the same checks before publishing.
 - Captions use your saved **Photo** or **Video** writing instructions and the shared
-  **AI model** (or the bot's own model, `TELEGRAM_OPENAI_MODEL`). Caption styles are not used; ask the bot for a tone instead.
+  **AI model** (or the bot's own model, `TELEGRAM_OPENAI_MODEL`). For a photo or video you send, ask the bot for a tone; new drafts from Drive, Forms or the news can use a caption style.
 - `/start` explains the bot. `/reset` starts a new conversation. One photo or video
   per post: from an album, only the first is used.
 - **Limits:** Telegram lets bots download files up to 20 MB, so larger videos must

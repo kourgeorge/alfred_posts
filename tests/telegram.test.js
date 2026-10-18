@@ -81,8 +81,10 @@ const message = (fields, user = from()) => ({ message: { message_id: 1, from: us
 const photo = caption => message({ caption, photo: [{ file_id: 'small', width: 320, height: 240 }, { file_id: 'thumb', width: 800, height: 600 },
   { file_id: 'large', width: 2000, height: 1500 }] });
 const button = data => ({ callback_query: { id: 'q1', from: from(), data, message: { message_id: 5, chat: { id: OWNER, type: 'private' } } } });
-const call = (name, args) => ({ role: 'assistant', content: null, tool_calls: [{ id: `call-${name}`, type: 'function',
-  function: { name, arguments: JSON.stringify(args) } }] });
+const call = (name, args) => calls([name, args]);
+/** One AI message asking for several tools at once. */
+const calls = (...list) => ({ role: 'assistant', content: null, tool_calls: list.map(([name, args], i) => ({ id: `call-${i}-${name}`,
+  type: 'function', function: { name, arguments: JSON.stringify(args) } })) });
 
 test('only genuine webhook calls from listed users in private chats are handled', async () => {
   const fake = world();
@@ -172,20 +174,182 @@ test('an expired suggestion cannot be approved', async () => {
   assert.equal(fake.dispatched.length, 0);
 });
 
-test('the AI can list and unschedule posts, but only real scheduled ones, after approval', async () => {
-  const state = { drafts: [{ id: 'draft-a', type: 'image', status: 'scheduled', revision: 3, scheduled_at: '2099-03-02T08:00:00+00:00', text: 'Morning post' },
-    { id: 'draft-b', type: 'image', status: 'published', revision: 1, text: 'Old' }], schedules: [], operations: [] };
-  const fake = world({ state, ai: [call('list_scheduled', {}), call('propose_cancel', { draft_id: 'draft-b' }),
-    call('propose_cancel', { draft_id: 'draft-a' }), { role: 'assistant', content: '' }] });
-  await webhook(message({ text: 'cancel the post on Monday' }));
-  const results = fake.openai.at(-1).messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
-  assert.deepEqual(results[0].scheduled.map(d => d.id), ['draft-a']);
-  assert.match(results[1].error, /no scheduled post/);
-  const shown = fake.sent.find(m => m.reply_markup);
-  assert.match(shown.text, /Unschedule[\s\S]*Morning post/);
-  await webhook(button(shown.reply_markup.inline_keyboard[0][0].callback_data));
-  assert.equal(fake.dispatched[0].action, 'cancel_draft');
-  assert.deepEqual([fake.dispatched[0].draft_id, fake.dispatched[0].revision], ['draft-a', 3]);
+// A state with posts and schedules, as the bot sees it.
+const busyState = () => ({ operations: [],
+  drafts: [
+    { id: 'draft-a', type: 'image', status: 'scheduled', revision: 3, scheduled_at: '2099-03-02T08:00:00+00:00', text: 'Morning post',
+      created_at: '2099-01-01T08:00:00+00:00', source: { name: 'lesson.jpg' } },
+    { id: 'draft-b', type: 'image', status: 'published', revision: 1, text: 'Old', published_at: '2099-01-01T08:00:00+00:00', source: { name: 'old.jpg' } },
+    { id: 'draft-c', type: 'video', status: 'draft', revision: 2, text: 'Saved draft', created_at: '2099-01-02T08:00:00+00:00', source: { name: 'car.mp4' } },
+    { id: 'draft-d', type: 'image', status: 'failed', revision: 1, text: 'Broken', error: 'Facebook rejected the request', source: { name: 'x.jpg' } },
+    { id: 'draft-e', type: 'news', status: 'draft', revision: 1, text: 'News', source: { name: 'Story' } },
+    { id: 'draft-z', type: 'image', status: 'deleted', revision: 4, text: 'Gone', source: { name: 'gone.jpg' } }],
+  schedules: [{ id: 'sched-1', name: 'Morning tips', type: 'image', mode: 'draft', days: [0, 2, 4], time: '09:00',
+    timezone: 'Asia/Jerusalem', enabled: true }],
+  missed_runs: [{ id: 'missed-1', schedule_id: 'sched-1', slot: '2099-01-05@09:00', name: 'Morning tips', type: 'image',
+    mode: 'draft', scheduled_at: '2099-01-05T07:00:00+00:00', status: 'missed' }] });
+const toolResults = fake => fake.openai.at(-1).messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
+const shown = fake => fake.sent.filter(m => m.reply_markup).at(-1);
+const approve = fake => webhook(button(shown(fake).reply_markup.inline_keyboard[0][0].callback_data));
+
+test('the AI lists posts and schedules, but never deleted posts, and sees full captions on request', async () => {
+  const fake = world({ state: busyState(), ai: [calls(['list_posts', {}], ['list_posts', { filter: 'attention' }], ['list_posts', { filter: 'published' }],
+    ['get_post', { post_id: 'draft-a' }], ['get_post', { post_id: 'draft-z' }], ['list_schedules', {}]), { role: 'assistant', content: 'Here is everything.' }] });
+  await webhook(message({ text: 'what do I have?' }));
+  const [open, attention, published, full, gone, schedules] = toolResults(fake);
+  assert.deepEqual(open.posts.map(p => p.id), ['draft-a', 'draft-c', 'draft-d', 'draft-e']);
+  assert.equal(open.posts[0].scheduled_for, formatted('2099-03-02T08:00:00Z'));
+  assert.deepEqual(attention.posts.map(p => p.id), ['draft-d']);
+  assert.equal(attention.posts[0].problem, 'Facebook rejected the request');
+  assert.deepEqual(attention.missed_runs.map(r => r.missed_id), ['missed-1']);
+  assert.deepEqual(published.posts.map(p => p.id), ['draft-b']);
+  assert.equal(full.caption, 'Morning post');
+  assert.match(gone.error, /no post/);
+  assert.deepEqual(schedules.schedules[0], { schedule_id: 'sched-1', name: 'Morning tips', format: 'image', days: ['mon', 'wed', 'fri'],
+    time: '09:00', timezone: 'Asia/Jerusalem', mode: 'draft', on: true, next_run: schedules.schedules[0].next_run });
+  assert.ok(schedules.schedules[0].next_run);
+  assert.equal(fake.dispatched.length, 0);
+  assert.ok(!fake.sent.some(m => m.reply_markup));
+});
+const formatted = iso => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'short',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+
+test('rescheduling a planned post needs no new photo and sends one approved command', async () => {
+  const fake = world({ state: busyState(), ai: [call('list_posts', { filter: 'scheduled' }),
+    call('propose_edit', { post_id: 'draft-a', when: '2099-03-19T18:00' }), { role: 'assistant', content: '' }] });
+  await webhook(message({ text: 'Change the schedule of the previous post to the 19th at 18:00' }));
+  assert.match(shown(fake).text, /Change this post\?[\s\S]*New time:[\s\S]*Morning post/);
+  assert.equal(fake.dispatched.length, 0);
+  await approve(fake);
+  assert.deepEqual({ ...fake.dispatched[0], id: undefined }, { id: undefined, action: 'schedule_draft', draft_id: 'draft-a', revision: 3,
+    scheduled_at: '2099-03-19T16:00:00.000Z', notify_chat_id: String(OWNER), notify_language: 'en' });
+  assert.match(fake.dispatched[0].id, /^telegram-/);
+});
+
+test('one edit can change the caption with a new time, publish now, unschedule, or keep the time', async () => {
+  const cases = [
+    [{ caption: 'Shorter caption', when: 'now' }, { action: 'publish', text: 'Shorter caption' }, /Publish now[\s\S]*New caption:\nShorter caption/],
+    [{ when: 'draft' }, { action: 'cancel_draft' }, /Unschedule it/],
+    [{ caption: 'Only the words' }, { action: 'save_draft', text: 'Only the words' }, /stays scheduled/],
+  ];
+  for (const [args, expected, text] of cases) {
+    mock.restoreAll();
+    const fake = world({ state: busyState(), ai: [call('propose_edit', { post_id: 'draft-a', ...args }), { role: 'assistant', content: '' }] });
+    await webhook(message({ text: 'change it' }));
+    assert.match(shown(fake).text, text);
+    await approve(fake);
+    assert.deepEqual({ action: fake.dispatched[0].action, draft_id: fake.dispatched[0].draft_id, ...(expected.text ? { text: fake.dispatched[0].text } : {}) },
+      { draft_id: 'draft-a', ...expected });
+  }
+});
+
+test('edits are refused for published, deleted, unknown or unchanged posts, and media needs a sent photo', async () => {
+  const fake = world({ state: busyState(), ai: [calls(['propose_edit', { post_id: 'draft-b', caption: 'x' }], ['propose_edit', { post_id: 'draft-z', caption: 'x' }],
+    ['propose_edit', { post_id: 'nope', caption: 'x' }], ['propose_edit', { post_id: 'draft-c' }], ['propose_edit', { post_id: 'draft-c', when: 'draft' }],
+    ['propose_edit', { post_id: 'draft-c', replace_media: true }], ['propose_edit', { post_id: 'draft-c', when: '2001-01-01T10:00' }],
+    ['propose_delete', { post_id: 'draft-b' }]), { role: 'assistant', content: 'Which post?' }] });
+  await webhook(message({ text: 'change it' }));
+  const errors = toolResults(fake).map(r => r.error);
+  assert.match(errors[0], /published/);
+  assert.match(errors[1], /no post/);
+  assert.match(errors[2], /no post/);
+  assert.match(errors[3], /Nothing would change/);
+  assert.match(errors[4], /Nothing would change/);
+  assert.match(errors[5], /has not sent a photo/);
+  assert.match(errors[6], /passed/);
+  assert.match(errors[7], /published/);
+  assert.ok(!fake.sent.some(m => m.reply_markup));
+});
+
+test('a photo sent in the chat can replace a saved post\'s media, keeping its caption', async () => {
+  const fake = world({ state: busyState(), ai: [{ role: 'assistant', content: 'Should I write a new post or use it for a saved one?' },
+    call('propose_edit', { post_id: 'draft-e', replace_media: true }), call('propose_edit', { post_id: 'draft-a', replace_media: true, when: '2099-05-01T10:00' }),
+    call('propose_edit', { post_id: 'draft-a', replace_media: true }), { role: 'assistant', content: '' }] });
+  await webhook(photo());
+  const upload = fake.chat().upload.id;
+  await webhook(message({ text: 'use this photo for the Monday post' }));
+  const errors = toolResults(fake).map(r => r.error);
+  assert.match(errors[0], /News posts/);
+  assert.match(errors[1], /Replace the photo or video first/);
+  assert.match(shown(fake).text, /Replace its photo or video[\s\S]*stays scheduled[\s\S]*Morning post/);
+  await approve(fake);
+  assert.deepEqual({ ...fake.dispatched[0], id: undefined, notify_chat_id: undefined, notify_language: undefined },
+    { id: undefined, notify_chat_id: undefined, notify_language: undefined, action: 'replace_media', draft_id: 'draft-a', revision: 3,
+      text: 'Morning post', type: 'image', upload_id: upload });
+  assert.equal(fake.chat().upload, null);
+});
+
+test('posts can be deleted and new drafts generated from Drive, Forms or the news, after approval', async () => {
+  const fake = world({ state: busyState(), ai: [call('propose_delete', { post_id: 'draft-c' }), { role: 'assistant', content: '' },
+    call('propose_generate', { format: 'news', style: 'nonsense' }), call('propose_generate', { format: 'news', style: 'funny' }), { role: 'assistant', content: '' }] });
+  await webhook(message({ text: 'delete the video draft' }));
+  assert.match(shown(fake).text, /Delete this post\?[\s\S]*Saved draft/);
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[0].action, fake.dispatched[0].draft_id, fake.dispatched[0].revision], ['delete_draft', 'draft-c', 2]);
+  await webhook(message({ text: 'make a funny news post' }));
+  assert.match(toolResults(fake)[0].error, /Choose a style/);
+  assert.match(shown(fake).text, /new news draft in a funny style/);
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[1].action, fake.dispatched[1].type, fake.dispatched[1].caption_style], ['generate', 'news', 'funny']);
+  // The new post's id is remembered, so a later "the previous post" can find it.
+  assert.ok(fake.chat().messages.at(-1).content.includes(fake.dispatched[1].id));
+});
+
+test('recurring schedules can be created, changed, paused, resumed and deleted after approval', async () => {
+  const fake = world({ state: busyState(), ai: [
+    call('propose_schedule', { name: 'Evening', format: 'video' }),
+    call('propose_schedule', { name: 'Evening', format: 'video', days: ['sun', 'thu'], time: '9:30', mode: 'publish' }), { role: 'assistant', content: '' },
+    call('propose_schedule', { schedule_id: 'sched-1', time: '09:00' }), call('propose_schedule', { schedule_id: 'sched-1', time: '10:15', days: ['tue'] }), { role: 'assistant', content: '' },
+    call('propose_schedule_switch', { schedule_id: 'sched-1', on: true }), call('propose_schedule_switch', { schedule_id: 'sched-1', on: false }), { role: 'assistant', content: '' },
+    call('propose_delete_schedule', { schedule_id: 'sched-1' }), { role: 'assistant', content: '' }] });
+  await webhook(message({ text: 'new schedule' }));
+  assert.match(toolResults(fake)[0].error, /needs: days, time, mode/);
+  assert.match(shown(fake).text, /Create this recurring schedule\?[\s\S]*Days: Thu, Sun[\s\S]*Time: 09:30[\s\S]*without review/);
+  await approve(fake);
+  assert.deepEqual(fake.dispatched[0].schedule, { name: 'Evening', type: 'video', mode: 'publish', days: [3, 6], time: '09:30',
+    timezone: 'Asia/Jerusalem', enabled: true });
+  assert.equal(fake.dispatched[0].schedule_id, undefined);
+  await webhook(message({ text: 'move morning tips to tuesday 10:15' }));
+  assert.match(toolResults(fake)[0].error, /Nothing would change/);
+  assert.match(shown(fake).text, /Change the schedule "Morning tips"/);
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[1].action, fake.dispatched[1].schedule_id, fake.dispatched[1].schedule.time, fake.dispatched[1].schedule.days,
+    fake.dispatched[1].schedule.mode], ['save_schedule', 'sched-1', '10:15', [1], 'draft']);
+  await webhook(message({ text: 'pause it' }));
+  assert.match(toolResults(fake)[0].error, /already on/);
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[2].action, fake.dispatched[2].enabled], ['toggle_schedule', false]);
+  await webhook(message({ text: 'delete it' }));
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[3].action, fake.dispatched[3].schedule_id], ['delete_schedule', 'sched-1']);
+});
+
+test('missed runs can be recovered, due tasks run, and only one change waits at a time', async () => {
+  const fake = world({ state: busyState(), ai: [call('propose_missed', { missed_id: 'nope' }), call('propose_missed', { missed_id: 'missed-1' }),
+    call('propose_run_due', {}), { role: 'assistant', content: '' }, call('propose_run_due', {}), { role: 'assistant', content: '' }] });
+  await webhook(message({ text: 'fix the missed post and run everything' }));
+  const results = toolResults(fake);
+  assert.match(results[0].error, /no missed run/);
+  assert.match(results[2].error, /already waiting/);
+  assert.match(shown(fake).text, /missed post from "Morning tips"/);
+  await approve(fake);
+  assert.deepEqual([fake.dispatched[0].action, fake.dispatched[0].missed_id], ['recover_missed', 'missed-1']);
+  await webhook(message({ text: 'now run due tasks' }));
+  await approve(fake);
+  assert.equal(fake.dispatched[1].action, 'run_due');
+});
+
+test('a suggestion saved by the previous bot version cannot be approved', async () => {
+  const fake = world();
+  await webhook(message({ text: '/reset' }));
+  const file = fake.files.get(`telegram/chat-${OWNER}.json`);
+  const chat = JSON.parse(Buffer.from(file.bytes).toString());
+  chat.pending = { id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', action: 'unschedule', draft_id: 'draft-a', revision: 3,
+    expires_at: new Date(Date.now() + 60000).toISOString() };
+  file.bytes = Buffer.from(JSON.stringify(chat));
+  await webhook(button('ok:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'));
+  assert.equal(fake.dispatched.length, 0);
+  assert.match(fake.sent.at(-1).text, /no longer available/);
 });
 
 test('posting needs a photo or video, and past times are refused', async () => {
@@ -233,7 +397,7 @@ test('a reasoning model that needs reasoning turned off for tools is retried onc
   await webhook(message({ text: 'hi' }));
   await webhook(message({ text: 'again' }));
   assert.deepEqual(requests.map(r => r.reasoning_effort ?? null), [null, 'none', 'none']);
-  assert.ok(requests.every(r => r.model === 'reasoning-model' && r.tools.length === 3));
+  assert.ok(requests.every(r => r.model === 'reasoning-model' && r.tools.length === 12));
   // A bot-only model takes priority over the studio's shared model.
   await worker.fetch(new Request('https://gateway.example/telegram/webhook', { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': env.TELEGRAM_WEBHOOK_SECRET },

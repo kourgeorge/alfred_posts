@@ -54,6 +54,27 @@ class TelegramDraftTest(TestCase):
             self.app.command(self.command())
         self.assertEqual(self.store.state["drafts"], [])
 
+    def test_messages_for_changes_approved_in_the_bot(self):
+        self.app.command(self.command(scheduled_at="2099-01-01T10:00:00Z"))
+        draft = self.store.state["drafts"][0]
+        moved = {"id": "telegram-move-0001", "action": "schedule_draft", "draft_id": draft["id"], "revision": 1,
+                 "scheduled_at": "2099-02-03T16:00:00Z", "notify_language": "he"}
+        self.app.command(moved)
+        self.assertEqual(telegram.message(moved, self.store.state), "תוזמן ל-03/02/2099 18:00.")
+        self.app.command({"id": "telegram-save-0001", "action": "save_schedule", "schedule": {"name": "Morning tips", "type": "image",
+                          "mode": "draft", "days": [0], "time": "09:00", "timezone": "Asia/Jerusalem"}})
+        schedule = self.store.state["schedules"][0]
+        cases = [({"action": "delete_draft", "draft_id": draft["id"]}, "The post was deleted."),
+                 ({"id": "telegram-save-0001", "action": "save_schedule", "schedule": {"name": "Morning tips"}}, 'The schedule "Morning tips" was saved.'),
+                 ({"action": "toggle_schedule", "schedule_id": schedule["id"], "enabled": False}, 'The schedule "Morning tips" is paused.'),
+                 ({"action": "toggle_schedule", "schedule_id": schedule["id"], "enabled": True}, 'The schedule "Morning tips" is on again.'),
+                 ({"action": "delete_schedule", "schedule_id": "gone"}, "The schedule was deleted."),
+                 ({"action": "run_due"}, "The schedule check finished."),
+                 ({"action": "recover_missed", "missed_id": "nope"}, "The post could not be found. Check Alfred Studio.")]
+        for command, expected in cases:
+            with self.subTest(command=command["action"]):
+                self.assertEqual(telegram.message({"id": "telegram-x-0001", **command}, self.store.state), expected)
+
     def test_notification_reports_errors_and_never_breaks_the_run(self):
         with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "bot-token"}), \
                 patch("studio.telegram.requests.post", side_effect=OSError("https://api.telegram.org/botbot-token")) as post, \

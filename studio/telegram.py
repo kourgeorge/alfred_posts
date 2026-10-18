@@ -8,23 +8,49 @@ import requests
 MESSAGES = {
     "en": {"draft": "Saved as a draft in Alfred Studio.", "scheduled": "Scheduled for {time}.",
            "published": "Published on Facebook: {url}", "processing": "Sent to Facebook. The video is still processing: {url}",
-           "unscheduled": "Unscheduled. The post is back in your drafts.", "failed": "That did not work: {error}"},
+           "unscheduled": "Unscheduled. The post is back in your drafts.", "failed": "That did not work: {error}",
+           "deleted": "The post was deleted.", "saved_schedule": "The schedule \"{name}\" was saved.",
+           "paused": "The schedule \"{name}\" is paused.", "resumed": "The schedule \"{name}\" is on again.",
+           "deleted_schedule": "The schedule was deleted.", "ran_due": "The schedule check finished.",
+           "missing": "The post could not be found. Check Alfred Studio."},
     "he": {"draft": "נשמר כטיוטה ב-Alfred Studio.", "scheduled": "תוזמן ל-{time}.",
            "published": "פורסם בפייסבוק: {url}", "processing": "נשלח לפייסבוק. הסרטון עדיין בעיבוד: {url}",
-           "unscheduled": "התזמון בוטל. הפוסט חזר לטיוטות.", "failed": "זה לא הצליח: {error}"},
+           "unscheduled": "התזמון בוטל. הפוסט חזר לטיוטות.", "failed": "זה לא הצליח: {error}",
+           "deleted": "הפוסט נמחק.", "saved_schedule": "התזמון \"{name}\" נשמר.",
+           "paused": "התזמון \"{name}\" הושהה.", "resumed": "התזמון \"{name}\" פועל שוב.",
+           "deleted_schedule": "התזמון נמחק.", "ran_due": "בדיקת התזמונים הסתיימה.",
+           "missing": "הפוסט לא נמצא. בדקו ב-Alfred Studio."},
 }
 
 
 def message(command, state, error=None):
     text = MESSAGES.get(command.get("notify_language"), MESSAGES["en"])
+    action = command.get("action")
     if error:
         return text["failed"].format(error=error)
-    if command.get("action") == "cancel_draft":
+    if action == "cancel_draft":
         return text["unscheduled"]
-    draft_id = command.get("draft_id") or command["id"]
+    if action == "delete_draft":
+        return text["deleted"]
+    if action == "run_due":
+        return text["ran_due"]
+    if action == "delete_schedule":
+        return text["deleted_schedule"]
+    if action in ("save_schedule", "toggle_schedule"):
+        schedule_id = command.get("schedule_id") or command["id"]
+        schedule = next((s for s in state["schedules"] if s["id"] == schedule_id), None)
+        name = schedule["name"] if schedule else command.get("schedule", {}).get("name", "")
+        if action == "toggle_schedule":
+            return text["resumed" if command.get("enabled") else "paused"].format(name=name)
+        return text["saved_schedule"].format(name=name)
+    if action == "recover_missed":
+        missed = next((r for r in state.get("missed_runs", []) if r["id"] == command.get("missed_id")), None)
+        draft_id = missed and (missed.get("draft_id") or missed["id"])
+    else:
+        draft_id = command.get("draft_id") or command["id"]
     draft = next((d for d in state["drafts"] if d["id"] == draft_id), None)
     if not draft:
-        return text["failed"].format(error="The post could not be found. Check Alfred Studio.")
+        return text["missing"]
     if draft["status"] in ("published", "processing"):
         return text[draft["status"]].format(url=draft.get("facebook_url", ""))
     if draft["status"] == "scheduled":
