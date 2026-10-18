@@ -246,6 +246,34 @@ test('incomplete, corrupt, animated, or disguised uploads cannot generate or pub
   await assert.rejects(readUpload(store, UPLOAD_ID));
 });
 
+test('replacing media keeps the schedule and publishes the new upload with the edited caption', async () => {
+  const store = new MemoryStore();
+  await upload(store, PNG);
+  const drive = { id: 'drive-photo-1', type: 'image', status: 'scheduled', revision: 3, text: 'Drive caption',
+    scheduled_at: '2099-01-01T10:00:00Z', preview: 'old',
+    source: { key: 'drive-photo-1', id: 'drive-photo-1', name: 'old.jpg', sha256: '0'.repeat(64) } };
+  const news = { id: 'news-1', type: 'news', status: 'draft', revision: 1, text: 'News', source: { key: 'news:x' } };
+  store.state.drafts = [drive, news];
+  const app = new Studio(store, () => new MediaService(config, { store, images }));
+  const replace = { id: 'replace-media-001', action: 'replace_media', draft_id: 'drive-photo-1', revision: 3,
+    type: 'image', upload_id: UPLOAD_ID, text: 'My edited caption' };
+  await assert.rejects(app.command({ ...replace, id: 'replace-stale-001', revision: 2 }), CommandFailed);
+  await app.command(replace);
+  const draft = store.state.drafts[0];
+  assert.deepEqual([draft.status, draft.revision, draft.text], ['scheduled', 4, 'My edited caption']);
+  assert.equal(draft.scheduled_at, '2099-01-01T10:00:00Z');
+  assert.equal(draft.source.upload_id, UPLOAD_ID);
+  assert.ok(draft.preview.startsWith('data:image/jpeg;base64,'));
+  await assert.rejects(app.command({ ...replace, id: 'replace-news-001', draft_id: 'news-1', revision: 1 }), /cannot be replaced/);
+  await assert.rejects(app.command({ ...replace, id: 'replace-wrong-001', revision: 4, type: 'video' }), CommandFailed);
+  assert.deepEqual(store.state.drafts[1], news);
+  const posts = network([['https://graph.facebook.com/v23.0/page/photos', () => Response.json({ id: 'receipt' })]]);
+  await app.tick(new Date(Date.UTC(2099, 0, 1, 10, 30)));
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].options.body.get('message'), 'My edited caption');
+  assert.deepEqual(new Uint8Array(await posts[0].options.body.get('source').arrayBuffer()), PNG);
+});
+
 test('description and format are checked before the AI', async () => {
   const store = new MemoryStore();
   await upload(store, PNG);

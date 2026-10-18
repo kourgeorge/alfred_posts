@@ -118,6 +118,31 @@ class UploadTest(TestCase):
         with self.assertRaises(ValueError):
             Uploads(self.store).read(UPLOAD_ID)
 
+    def test_replacing_media_keeps_the_schedule_and_publishes_the_new_upload_with_the_edited_caption(self):
+        drive = {"id": "drive-photo-1", "type": "image", "status": "scheduled", "revision": 3, "text": "Drive caption",
+                 "scheduled_at": "2099-01-01T10:00:00Z", "preview": "old",
+                 "source": {"key": "drive-photo-1", "id": "drive-photo-1", "name": "old.jpg", "sha256": "0" * 64}}
+        news = {"id": "news-1", "type": "news", "status": "draft", "revision": 1, "text": "News", "source": {"key": "news:x"}}
+        self.store.state["drafts"] = [drive, news]
+        replace = {"id": "replace-media-001", "action": "replace_media", "draft_id": "drive-photo-1", "revision": 3,
+                   "type": "image", "upload_id": UPLOAD_ID, "text": "My edited caption"}
+        with self.assertRaises(RuntimeError):
+            self.app.command({**replace, "id": "replace-stale-001", "revision": 2})
+        self.app.command(replace)
+        draft = self.store.state["drafts"][0]
+        self.assertEqual((draft["status"], draft["revision"], draft["text"]), ("scheduled", 4, "My edited caption"))
+        self.assertEqual(draft["scheduled_at"], "2099-01-01T10:00:00Z")
+        self.assertEqual(draft["source"]["upload_id"], UPLOAD_ID)
+        self.assertTrue(draft["preview"].startswith("data:image/jpeg;base64,"))
+        with self.assertRaises(RuntimeError):
+            self.app.command({**replace, "id": "replace-news-001", "draft_id": "news-1", "revision": 1})
+        with self.assertRaises(RuntimeError):
+            self.app.command({**replace, "id": "replace-wrong-001", "revision": 4, "type": "video"})
+        self.assertEqual(self.store.state["drafts"][1], news)
+        with patch("studio.media.facebook.post_photo_to_page", return_value={"id": "receipt"}) as publish:
+            self.app.tick(datetime(2099, 1, 1, 10, 30, tzinfo=timezone.utc))
+        publish.assert_called_once_with(self.config, self.data, "My edited caption")
+
     def test_required_description_and_format_are_checked_before_ai(self):
         with patch("content._complete") as complete:
             for description in (None, "", "   ", "x" * 2001):

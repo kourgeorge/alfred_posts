@@ -125,6 +125,27 @@ class Studio:
             self.publish({"id": f"publish-{draft_id}", "draft_id": draft_id, "revision": 1})
         return draft_id
 
+    def replace_media(self, command):
+        """Swap a draft's photo or video for an upload, saving the caption sent with it."""
+        post_type = command.get("type")
+        if post_type not in ("image", "video"):
+            raise ValueError("Choose a photo or video for your upload.")
+        upload_id = validate_id(command.get("upload_id"))
+        state, _ = self.store.read()
+        if find_draft(state, command["draft_id"])["type"] == "news":
+            raise ValueError("News posts share the original link, so their media cannot be replaced.")
+        source, preview = self.media.check_upload(post_type, upload_id)
+
+        def save(state):
+            draft = edit_draft(state, command)
+            if draft["type"] == "news":
+                raise ValueError("News posts share the original link, so their media cannot be replaced.")
+            draft.update(type=post_type, source=source, preview=preview)
+            if draft["status"] == "failed":
+                draft["status"] = "draft"
+            return draft["id"]
+        return self.store.change(save)
+
     def publish(self, command):
         def reserve(state):
             draft = edit_draft(state, command)
@@ -244,6 +265,8 @@ class Studio:
                                  description=command.get("description"), caption_style=command.get("caption_style", "default"))
         if action == "create_upload_draft":
             return self.create_upload_draft(command)
+        if action == "replace_media":
+            return self.replace_media(command)
         if action == "publish":
             return self.publish(command)
         if action in ("save_draft", "schedule_draft", "cancel_draft"):

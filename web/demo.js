@@ -117,6 +117,13 @@ export function demoCommand(state, command) {
         status: command.action === 'save_draft' ? draft.status : command.action === 'schedule_draft' ? 'scheduled' : 'draft',
         scheduled_at: command.action === 'save_draft' ? draft.scheduled_at : command.scheduled_at || null });
       result = draft.id; break;
+    case 'replace_media': {
+      const upload=command.demo_upload;
+      Object.assign(draft, {type:command.type, text:command.text ?? draft.text, revision:draft.revision + 1, preview:null,
+        status:draft.status === 'failed' ? 'draft' : draft.status,
+        source:{key:`upload:${command.upload_id}`,upload_id:command.upload_id,name:upload.name,mime:upload.mime,size:upload.size,parts:upload.parts}});
+      result = draft.id; break;
+    }
     case 'publish':
       Object.assign(draft, {text: command.text ?? draft.text, status: 'published', published_at: new Date().toISOString(), revision: draft.revision + 1});
       result = draft.id; break;

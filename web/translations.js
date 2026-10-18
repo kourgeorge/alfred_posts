@@ -1922,4 +1922,10 @@ export const translations = {
   "The settings are busy. Try again shortly.": ["ההגדרות תפוסות כרגע. נסו שוב בעוד רגע.", "الإعدادات مشغولة. حاول مرة أخرى بعد قليل."],
   "The gateway secret TELEGRAM_WEBHOOK_SECRET is not set.": ["הסוד TELEGRAM_WEBHOOK_SECRET לא הוגדר בשער.", "لم يتم تعيين السر TELEGRAM_WEBHOOK_SECRET في البوابة."],
   "Connected, but paused. The bot replies that it is paused.": ["מחובר, אבל מושהה. הבוט עונה שהוא מושהה.", "متصل، لكنه متوقف مؤقتًا. يردّ البوت بأنه متوقف."],
+  "Replace photo or video": ["החלפת תמונה או סרטון", "استبدال الصورة أو الفيديو"],
+  "JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB. Your caption stays as it is.": ["JPG, PNG, WebP עד 10MB; MP4 או MOV עד 50MB. הטקסט של הפוסט נשאר כמו שהוא.", "JPG وPNG وWebP حتى 10 ميغابايت؛ MP4 أو MOV حتى 50 ميغابايت. يبقى نص المنشور كما هو."],
+  "Replacing the photo or video…": ["מחליף את התמונה או הסרטון…", "جارٍ استبدال الصورة أو الفيديو…"],
+  "Photo or video replaced": ["התמונה או הסרטון הוחלפו", "تم استبدال الصورة أو الفيديو"],
+  "News posts share the original link, so their media cannot be replaced.": ["פוסטים של חדשות משתפים את הקישור המקורי, ולכן אי אפשר להחליף בהם את המדיה.", "تشارك منشورات الأخبار الرابط الأصلي، لذلك لا يمكن استبدال الوسائط فيها."],
+  "Choose an uploaded photo or video for this draft.": ["בחרו תמונה או סרטון שהועלו לטיוטה הזו.", "اختر صورة أو فيديو مرفوعًا لهذه المسودة."],
 };

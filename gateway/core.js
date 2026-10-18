@@ -14,7 +14,7 @@ export const secrets = new Set(['FB_PAGE_ACCESS_TOKEN', 'FB_PAGE_ID', 'OPENAI_AP
   'TAVILY_API_KEY',
   'OPENAI_MODEL', 'OPENAI_MODEL_VIDEO', 'OPENAI_MODEL_QUESTION',
   'GOOGLE_SERVICE_ACCOUNT_JSON', 'DRIVE_FOLDER_ID', 'DRIVE_FOLDER_ID_VIDEO', 'DRIVE_FOLDER_ID_QUESTIONS']);
-const actions = new Set(['generate', 'generate_upload', 'create_upload_draft', 'publish', 'save_draft', 'schedule_draft', 'cancel_draft',
+const actions = new Set(['generate', 'generate_upload', 'create_upload_draft', 'replace_media', 'publish', 'save_draft', 'schedule_draft', 'cancel_draft',
   'delete_draft', 'save_schedule', 'toggle_schedule', 'delete_schedule', 'refresh', 'save_prompt', 'refresh_models', 'save_model', 'run_due', 'recover_missed']);
 const attempts = new Map();
 
@@ -116,6 +116,11 @@ export function validateCommand(command) {
     || (command.publish !== undefined && typeof command.publish !== 'boolean')
     || (command.publish && command.scheduled_at)))
     throw new HttpError(400, 'Invalid post from the Telegram bot.');
+  if (command.action === 'replace_media' && (!['image','video'].includes(command.type)
+    || typeof command.upload_id !== 'string' || !new RegExp(`^${UPLOAD_ID}$`).test(command.upload_id)
+    || typeof command.draft_id !== 'string' || command.draft_id.length > 150
+    || !Number.isInteger(command.revision) || typeof command.text !== 'string' || command.text.length > 12000))
+    throw new HttpError(400, 'Choose an uploaded photo or video for this draft.');
   // Commands approved in the Telegram bot report back to that chat when they finish.
   if (command.notify_chat_id !== undefined && (typeof command.notify_chat_id !== 'string' || !/^-?\d{1,20}$/.test(command.notify_chat_id)))
     throw new HttpError(400, 'Invalid studio command.');

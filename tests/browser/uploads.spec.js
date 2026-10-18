@@ -164,3 +164,29 @@ test('unsupported uploads are rejected and locking cancels a transfer before gen
   await expect(page.getByLabel('Describe your image or video',{exact:true})).toHaveValue('');
   await expect(page.getByAltText('Selected upload preview')).toHaveCount(0);
 });
+
+for(const width of [1440,390]) test(`a saved draft's caption and media can both be changed at ${width}px`,async({page})=> {
+  await page.setViewportSize({width,height:1000});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button',{name:'Explore the demo'}).click();
+  await page.goto('/#create');
+  await page.getByRole('button',{name:'Generate photo draft'}).click();
+  await expect(page.locator('.caption-panel .badge')).toHaveText('Draft');
+  await page.locator('#caption').fill('My edited caption before the new photo');
+  await page.getByLabel('Replace photo or video',{exact:true}).setInputFiles({name:'new-lesson.png',mimeType:'image/png',buffer:photo});
+  await expect(page.locator('.source-label')).toContainText('new-lesson.png');
+  await expect(page.locator('.facebook-card .post-image')).toHaveAttribute('src',/^blob:/);
+  await expect(page.locator('#caption')).toHaveValue('My edited caption before the new photo');
+  await expect(page.locator('#edit-state')).toHaveText('Saved draft');
+  await page.getByLabel('Replace photo or video',{exact:true}).setInputFiles({name:'new-lesson.mp4',mimeType:'video/mp4',buffer:video});
+  await expect(page.locator('.source-label')).toContainText('new-lesson.mp4');
+  await expect(page.getByRole('button',{name:'Watch selected video',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  await page.screenshot({path:`test-results/replace-media-${width}.png`,fullPage:true});
+  await page.getByRole('button',{name:'News Post',exact:true}).click();
+  await page.getByRole('button',{name:'Find news & prepare post'}).click();
+  await expect(page.locator('.news-source')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Replace photo or video'})).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

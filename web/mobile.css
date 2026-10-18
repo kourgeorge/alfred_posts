@@ -46,6 +46,7 @@ dialog { max-height: calc(100dvh - 40px); overscroll-behavior: contain; }
   }
   .icon-btn, .schedule-card-actions > .icon-btn { width: 44px; height: 44px; }
   .source-label a { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+  .replace-media .btn { width: 100%; min-height: 44px; font-size: 13px; }
   .upload-dropzone input::file-selector-button { min-height: 44px; font-size: 13px; }
   .day-picker span { min-height: 44px; }
   /* A full-size hit area around the compact visual switch. */

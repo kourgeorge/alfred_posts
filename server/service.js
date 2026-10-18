@@ -157,6 +157,27 @@ export class Studio {
     return draftId;
   }
 
+  /** Swap a draft's photo or video for an upload, saving the caption sent with it. */
+  async replaceMedia(command) {
+    const postType = command.type;
+    if (!['image', 'video'].includes(postType)) throw new UserError('Choose a photo or video for your upload.');
+    const uploadId = validateId(command.upload_id);
+    const newsError = 'News posts share the original link, so their media cannot be replaced.';
+    const checked = await this.step('check replacement media', async () => {
+      const [state] = await this.store.read();
+      if (findDraft(state, command.draft_id).type === 'news') throw new UserError(newsError);
+      const [source, preview] = await (await this.media()).checkUpload(postType, uploadId);
+      return { source, preview };
+    });
+    return this.step('replace media', () => this.store.change(state => {
+      const draft = editDraft(state, command);
+      if (draft.type === 'news') throw new UserError(newsError);
+      Object.assign(draft, { type: postType, source: checked.source, preview: checked.preview });
+      if (draft.status === 'failed') draft.status = 'draft';
+      return draft.id;
+    }));
+  }
+
   async publish(command) {
     const draft = await this.step('reserve publication', () => this.store.change(state => {
       const item = editDraft(state, command);
@@ -288,6 +309,7 @@ export class Studio {
         captionStyle: Object.hasOwn(command, 'caption_style') ? command.caption_style : 'default' });
     }
     if (action === 'create_upload_draft') return this.createUploadDraft(command);
+    if (action === 'replace_media') return this.replaceMedia(command);
     if (action === 'publish') return this.publish(command);
     if (['save_draft', 'schedule_draft', 'cancel_draft'].includes(action)) {
       return this.step(action.replace('_', ' '), () => {

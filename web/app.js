@@ -179,7 +179,7 @@ function sourcePanel() {
     <label for="upload-description">${e(t("Describe your image or video"))}</label><textarea id="upload-description" dir="auto" maxlength="2000" rows="3" required placeholder="${e(t("For example: Practicing parallel parking with a beginner."))}" ${blocked()}>${e(uploadDescription)}</textarea><p class="field-hint">${e(t("A few words are enough. Your description and saved writing instructions guide the caption."))}</p>
     ${captionStylePicker()}
     <div id="upload-error" class="form-error" role="alert">${e(uploadError)}</div>
-    ${uploading?`<div id="upload-progress" role="status">${e(t('Saving your upload… {progress}%',{progress:number(uploading.progress)}))}</div><button type="button" class="text-link" data-action="cancel-upload">${e(t("Cancel upload"))}</button>`:''}
+    ${uploading&&!uploading.replace?`<div id="upload-progress" role="status">${e(t('Saving your upload… {progress}%',{progress:number(uploading.progress)}))}</div><button type="button" class="text-link" data-action="cancel-upload">${e(t("Cancel upload"))}</button>`:''}
     <button class="btn primary generate-btn" type="submit" ${blocked()||(!selection||!uploadDescription.trim()?'disabled':'')}>${icon('spark')} ${e(t("Generate caption"))}</button></form>`}
     <div class="micro-note">${e(t("Creates a preview. You decide when to publish."))}</div></div>`;
 }
@@ -193,13 +193,20 @@ function composer() {
     <div class="composer-layout"><section class="composer-controls">${sourcePanel()}
     <div class="panel caption-panel"><div class="step-title"><span>02</span><h2>${e(t("Make it yours"))}</h2>${draft?badge(draft.status):''}</div>
     ${available.length?`<label for="draft-select">${e(t("Open a saved draft"))}</label><select id="draft-select"><option value="">${e(t("Choose a draft…"))}</option>${available.map(d=>`<option value="${e(d.id)}" ${d.id===selectedDraft?'selected':''}>${e(typeNames[d.type])} · ${e(d.source.name)}</option>`).join('')}</select>`:''}
-    ${draft?`<div class="source-label">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer" aria-label="${e(t("Open original media"))}">${icon('external')}</a>`:''}</div><label for="caption">${e(t("Post caption"))} <span>${e(t("Hebrew supported"))}</span></label><textarea id="caption" dir="auto" maxlength="12000" ${canEdit&&!pending?'':'readonly'}>${e(draftText(draft))}</textarea><div class="caption-meta"><span id="caption-count">${e(t('{count} characters',{count:number(draftText(draft).length)}))}</span><span id="edit-state">${edits.has(draft.id)?t("Unsaved changes"):t("Saved draft")}</span></div>
+    ${draft?`<div class="source-label">${icon(draft.type)}<span>${e(draft.source.name)}</span>${sourceUrl(draft.source.url)?`<a href="${e(sourceUrl(draft.source.url))}" target="_blank" rel="noopener noreferrer" aria-label="${e(t("Open original media"))}">${icon('external')}</a>`:''}</div>${canEdit&&draft.type!=='news'?replaceMediaControl():''}<label for="caption">${e(t("Post caption"))} <span>${e(t("Hebrew supported"))}</span></label><textarea id="caption" dir="auto" maxlength="12000" ${canEdit&&!pending&&!uploading?'':'readonly'}>${e(draftText(draft))}</textarea><div class="caption-meta"><span id="caption-count">${e(t('{count} characters',{count:number(draftText(draft).length)}))}</span><span id="edit-state">${edits.has(draft.id)?t("Unsaved changes"):t("Saved draft")}</span></div>
     ${draft.caption_style&&draft.caption_style!=='default'&&Object.hasOwn(captionStyles,draft.caption_style)?`<p class="field-hint draft-style">${e(t('Generated style: {style}',{style:t(captionStyles[draft.caption_style].label)}))}</p>`:''}
     ${draft.type==='news'?newsSource(draft):''}
     ${draft.error?`<div class="form-error">${e(t(sourceMessage(draft.error)))}</div>`:''}${draft.status==='scheduled'?`<div class="inline-note">${icon('calendar')} ${e(t('Scheduled for {date}',{date:formatDate(draft.scheduled_at)}))}</div>`:''}
     ${canEdit?`<div class="editor-actions"><button class="text-link" data-action="revert-edits" ${blocked()}>${e(t("Revert edits"))}</button><button class="btn secondary" data-action="save-draft" ${blocked()}>${icon('check')} ${e(t("Save draft"))}</button><button class="icon-btn danger" data-action="delete-draft" aria-label="${e(t("Delete draft"))}" ${blocked()}>${icon('trash')}</button></div>`:''}`:empty('edit',t("A fresh draft starts here"),t("Generate a post or open a saved draft to edit the caption."))}</div>
     ${draft&&canEdit?`<div class="publish-actions"><button class="btn secondary" data-action="schedule-draft" ${blocked()}>${icon('calendar')} ${draft.status==='scheduled'?t("Change time"):t("Schedule post")}</button><button class="btn primary" data-action="publish" ${blocked()}>${icon('send')} ${e(t("Publish now"))}</button></div>${draft.status==='scheduled'?`<button class="text-link cancel-schedule" data-action="cancel-draft" ${blocked()}>${e(t("Move back to drafts"))}</button>`:''}`:''}</section>
     <section class="preview-column"><div class="preview-heading"><span class="eyebrow">${e(t("LIVE PREVIEW"))}</span><span><b class="facebook-mini">f</b> Facebook</span></div><article class="facebook-card"><div class="facebook-header"><div class="avatar">AK</div><div><strong>מורה נהיגה - אלפרד קור</strong><span>${demo?t("Demo preview"):t("Post preview")} · ${icon('globe')}</span></div><span class="facebook-more">···</span></div><div id="preview-caption" class="preview-caption" dir="auto">${draft?e(draftText(draft)):t("Your next post starts with an idea.\nGenerate a draft to see it here.")}</div>${mediaPreview(draft)}<div class="facebook-reactions"><span>♡</span><span>${e(t("Like"))}</span><span>${e(t("Comment"))}</span><span>${e(t("Share"))}</span></div></article><p class="preview-note">${icon('info')} ${e(t("A close preview of your post. Facebook may display media and line breaks differently."))}</p>${draft?.facebook_url?`<a class="btn secondary" href="${e(sourceUrl(draft.facebook_url))}" target="_blank" rel="noopener noreferrer">${e(t("View on Facebook"))} ${icon('external')}</a>`:''}</section></div>`;
+}
+
+function replaceMediaControl() {
+  const job=uploading?.replace?uploading:null;
+  return `<div class="replace-media"><input id="replace-media" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mov" aria-label="${e(t("Replace photo or video"))}" hidden ${blocked()} />
+    <button type="button" class="btn secondary" data-action="replace-media" aria-controls="replace-media" ${blocked()}>${icon('image')} ${e(t("Replace photo or video"))}</button>
+    ${job?`<div id="upload-progress" role="status">${e(t('Saving your upload… {progress}%',{progress:number(job.progress)}))}</div><button type="button" class="text-link" data-action="cancel-upload">${e(t("Cancel upload"))}</button>`:`<p class="field-hint">${e(t("JPG, PNG, WebP up to 10 MB; MP4 or MOV up to 50 MB. Your caption stays as it is."))}</p>`}</div>`;
 }
 
 function newsSource(draft) {
@@ -569,6 +576,32 @@ async function generateUpload() {
   }
 }
 
+async function replaceMedia(file) {
+  const draft=currentDraft();
+  if(pending||uploading||!file||!editable(draft)||draft.type==='news')return;
+  let details;
+  try {details=fileDetails(file);} catch(error) {toast(error.message,true);return;}
+  const id=crypto.randomUUID(),url=URL.createObjectURL(file);
+  // Taken now, so caption edits made before choosing the file are saved with it.
+  const payload=draftCommand('replace_media',{type:details.type,upload_id:id});
+  const job={controller:new AbortController(),progress:0,replace:true};
+  uploading=job;render();
+  try {
+    const manifest=demo?{id,...details}:await uploadFile(file,id,progress=>{
+      job.progress=progress;
+      if(uploading===job&&document.querySelector('#upload-progress'))document.querySelector('#upload-progress').textContent=t('Saving your upload… {progress}%',{progress:number(progress)});
+    },job.controller.signal);
+    if(uploading!==job||!signedIn){URL.revokeObjectURL(url);return;}
+    uploadedMedia.set(id,url);
+    uploading=null;
+    await command({...payload,...(demo?{demo_upload:manifest}:{})},t("Replacing the photo or video…"),t("Photo or video replaced"));
+  } catch(error) {
+    URL.revokeObjectURL(url);
+    if(uploading!==job)return;
+    uploading=null;render();toast(error.name==='AbortError'?t("Upload cancelled. You can try again."):error.message,true);
+  }
+}
+
 async function watchUpload(draft) {
   const show=url=>modal(t("Your uploaded video"),t("Review the original video attached to this post."),`<video class="uploaded-player" src="${e(url)}" controls playsinline preload="metadata"></video><a class="text-link" href="${e(url)}" download="${e(draft.source.name)}">${e(t("Download video if playback is unavailable"))}</a>`);
   const cached=uploadedMedia.get(draft.source.upload_id);
@@ -710,6 +743,7 @@ document.addEventListener('change',event=> {
     document.querySelector('#caption-style-hint').textContent=t(captionStyles[selectedCaptionStyle].description);
   }
   if(['media-upload','camera-photo','camera-video'].includes(event.target.id))selectUpload(event.target.files[0]);
+  if(event.target.id==='replace-media')replaceMedia(event.target.files[0]);
   if(event.target.id==='draft-select') {selectedDraft=event.target.value;selectedType=currentDraft()?.type||selectedType;sourceMode=selectedType==='news'?'news':sourceMode==='news'?'library':sourceMode;render();}
   if(event.target.id==='schedule-mode') document.querySelector('#mode-hint').textContent=event.target.value==='publish'?t("This schedule publishes to Facebook without a manual review."):t("The post will wait in your drafts until you choose to publish.");
 });
@@ -738,7 +772,12 @@ document.addEventListener('click',async event=> {
     if([...form.elements].some(input=>input.name&&input.value!==input.defaultValue))return toast(t("Save or clear your changes before refreshing saved values."));
     await command({action:'refresh'},t("Loading saved connection settings…"),t("Saved connection settings refreshed"));
   }
-  if(action==='cancel-upload') {uploading?.controller.abort();uploading=null;uploadError=t("Upload cancelled. You can try again.");render();}
+  if(action==='cancel-upload') {
+    const replacing=uploading?.replace;uploading?.controller.abort();uploading=null;
+    if(replacing){render();toast(t("Upload cancelled. You can try again."));}
+    else{uploadError=t("Upload cancelled. You can try again.");render();}
+  }
+  if(action==='replace-media') {const input=document.getElementById('replace-media');input.value='';input.click();}
   if(action==='demo') {demo=true;signedIn=true;state=demoState();selectedDraft=null;selectedType='image';navigate('overview');}
   if(action==='logout') lockStudio();
   if(action==='settings-view') {

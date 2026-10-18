@@ -88,6 +88,10 @@ The gateway can also run as a standard Cloudflare Worker with these three secret
   prepares an attributed caption with the selected article/video's preview.
 - Generate a draft, edit its caption, and review the Facebook preview.
 - **Save draft** keeps the edited text without publishing.
+- **Replace photo or video** swaps a draft's media for a file from your device, keeping
+  its caption (including unsaved edits) and any scheduled time. It works for photo, video,
+  and question drafts; a photo can become a video and back. News posts share the original
+  link, so their media cannot be replaced.
 - **Publish now** publishes that draft after the in-app confirmation.
 - **Schedule post** schedules that exact caption and selected source for one time.
 - Drafts are limited to 30 unfinished items; delete or publish old drafts to make room.
