@@ -1,6 +1,6 @@
 # Alfred Studio & Facebook posting scripts
 
-**[Open Alfred Studio](https://kourgeorge.github.io/alfred_posts/)** — preview and edit
+**[Open Alfred Studio](https://alfstudio.kour.me)** — preview and edit
 photo, video, question, and news posts; choose caption styles; publish on demand; schedule one-time and recurring
 posts; edit AI prompts; choose a shared OpenAI model from a freshly retrieved list;
 update API credentials; or send photos and videos to a private [Telegram bot](STUDIO.md#telegram-bot)

@@ -5,7 +5,8 @@
 import { HttpError, base64, createGateway, encoder } from './core.js';
 
 const REPOSITORY = 'kourgeorge/alfred_posts_automation';
-const ORIGIN = 'https://kourgeorge.github.io';
+// The studio's own address, and the GitHub Pages address it replaced (kept working).
+const ORIGINS = ['https://alfstudio.kour.me', 'https://kourgeorge.github.io'];
 const UPLOAD_CHUNK = 2 * 1024 * 1024;
 
 async function github(env, path, options = {}) {
@@ -80,8 +81,8 @@ async function writeFile(env, path, text, sha) {
 
 export const githubBackend = {
   name: 'github',
-  origins: () => [ORIGIN],
-  loginPage: () => 'https://kourgeorge.github.io/alfred_posts/',
+  origins: () => ORIGINS,
+  loginPage: () => 'https://alfstudio.kour.me/',
   configured: env => Boolean(env.GITHUB_TOKEN),
   login: () => ({ repository: REPOSITORY }),
   readState: env => github(env, '/contents/state.json?ref=studio-state', { headers: { Accept: 'application/vnd.github.raw+json' } }),

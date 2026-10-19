@@ -14,7 +14,8 @@ each has its own drafts, schedules, and credentials. See
 
 - **Website and source:** `kourgeorge/alfred_posts` (public)
 - **Private worker and state:** `kourgeorge/alfred_posts_automation`
-- **Website:** https://kourgeorge.github.io/alfred_posts/
+- **Website:** https://alfstudio.kour.me (GitHub Pages custom domain; the old
+  address https://kourgeorge.github.io/alfred_posts/ forwards to it)
 
 Only `dist/` is deployed to Pages. The website includes sample demo content but
 never includes service credentials or real drafts. The private worker checks out

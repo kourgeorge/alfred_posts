@@ -93,6 +93,16 @@ test('only fixed repository endpoints and approved service secrets are available
   } finally { upstream.mock.restore(); }
 });
 
+test('the studio address and the old GitHub Pages address can both sign in', async () => {
+  for (const origin of ['https://alfstudio.kour.me', 'https://kourgeorge.github.io']) {
+    const response = await worker.fetch(request('/api/login', { method: 'POST', origin, value: { password: env.STUDIO_PASSWORD } }), env);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('Access-Control-Allow-Origin'), origin);
+  }
+  const home = await (await worker.fetch(new Request('https://gateway.example/'), env)).json();
+  assert.equal(home.login, 'https://alfstudio.kour.me/');
+});
+
 test('foreign origins, repeated login attempts, and oversized requests are rejected', async () => {
   assert.equal((await worker.fetch(request('/api/login', {method:'POST',origin:'https://other.example',value:{password:env.STUDIO_PASSWORD}}), env)).status, 403);
   const preflight = await worker.fetch(request('/api/state', {method:'OPTIONS'}), env);
